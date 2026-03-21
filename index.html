@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Lifts">
+    <title>AI Workout Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22white%22/><text y=%22.9em%22 font-size=%2280%22>💪🏽</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22white%22/><text y=%22.9em%22 font-size=%2280%22>💪🏽</text></svg>">
+</head>
+<body>
+
+    <header class="top-bar">
+        <button id="hamburger-btn" class="icon-btn">☰</button>
+        <h1 id="current-view-title">Log Workout</h1>
+        <div class="spacer"></div>
+    </header>
+
+    <nav id="side-menu" class="hidden">
+        <button class="nav-item active" data-target="view-log-workout">Log Workout</button>
+        <button class="nav-item" data-target="view-log-weight">Log Weight</button>
+        <button class="nav-item" data-target="view-analytics">Data Analysis</button>
+        <button class="nav-item" data-target="view-ai-chat">Gemini Coach</button>
+    </nav>
+
+    <main>
+        <section id="view-log-workout" class="view-section">
+            
+            <div class="card">
+                <div class="header-with-action">
+                    <label for="category-select">Category</label>
+                    <button class="text-btn" id="add-category-btn">+ New</button>
+                </div>
+                <select id="category-select">
+                    <option value="" disabled selected>Select Category...</option>
+                </select>
+
+                <div class="header-with-action mt-3">
+                    <label for="exercise-select">Exercise</label>
+                    <button class="text-btn" id="add-exercise-btn">+ New</button>
+                </div>
+                <select id="exercise-select" disabled>
+                    <option value="" disabled selected>Select Category First...</option>
+                </select>
+            </div>
+
+            <div class="card" id="dynamic-fields-card">
+                <div id="dynamic-fields-container">
+                    <p class="muted-text">Select an exercise to log data.</p>
+                </div>
+                <button id="save-set-btn" class="primary-btn mt-3 hidden">Log Set</button>
+            </div>
+
+            <div id="exercise-modal" class="modal hidden">
+                <div class="modal-content card">
+                    <h3>Create New Exercise</h3>
+                    <input type="text" id="new-ex-name" placeholder="Exercise Name (e.g., Barbell Row)">
+                    
+                    <p class="mt-3">What do you want to track?</p>
+                    <div class="checkbox-grid">
+                        <label><input type="checkbox" value="sets" class="track-cb"> Sets</label>
+                        <label><input type="checkbox" value="reps" class="track-cb"> Reps</label>
+                        <label><input type="checkbox" value="weight" class="track-cb"> Weight</label>
+                        <label><input type="checkbox" value="distance" class="track-cb"> Distance</label>
+                        <label><input type="checkbox" value="laps" class="track-cb"> Laps</label>
+                        <label><input type="checkbox" value="time" class="track-cb"> Time</label>
+                        <label><input type="checkbox" value="calories" class="track-cb"> Calories</label>
+                        <label><input type="checkbox" value="form" class="track-cb"> Form</label>
+                        <label><input type="checkbox" value="intensity" class="track-cb"> Intensity</label>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <button id="cancel-ex-btn" class="half">Cancel</button>
+                        <button id="save-ex-btn" class="primary-btn half">Save</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-log-weight" class="view-section hidden">
+            <div class="card">
+                <h2>Bodyweight</h2>
+                <div class="input-group">
+                    <label>Current Weight (kg)</label>
+                    <input type="number" id="bodyweight" placeholder="70" inputmode="decimal">
+                </div>
+                <button class="primary-btn">Save Weight</button>
+            </div>
+        </section>
+
+        <section id="view-analytics" class="view-section hidden">
+            <div class="card">
+                <h2>Data Plotter</h2>
+                
+                <div class="input-group">
+                    <label>Select Exercise</label>
+                    <select id="plot-exercise-select">
+                        <option value="" disabled selected>Loading...</option>
+                    </select>
+                </div>
+
+                <div class="input-group mt-3 hidden" id="plot-metric-container">
+                    <label>Plot on Y-Axis</label>
+                    <select id="plot-metric-select">
+                        <option value="" disabled selected>Select Metric...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card hidden" id="chart-card">
+                <canvas id="analytics-chart"></canvas>
+            </div>
+        </section>
+
+        <section id="view-ai-chat" class="view-section hidden">
+            <div class="card">
+                <div class="header-with-action">
+                    <h2>Game Plan</h2>
+                    <button class="text-btn" id="ai-settings-btn" style="font-size: 20px; color: var(--text-muted);">⚙️</button>
+                </div>
+                
+                <div class="input-group mt-3">
+                    <label>What are we training today?</label>
+                    <select id="ai-category-select">
+                        <option value="" disabled selected>Select Category...</option>
+                    </select>
+                </div>
+                
+                <button id="get-advice-btn" class="ai-btn mt-3">✨ Get Gemini Advice</button>
+            </div>
+
+            <div class="card chat-container">
+                <div id="chat-history" style="display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 400px;">
+                    <p class="ai-msg">Select your category above and hit the button to generate today's strategy.</p>
+                </div>
+            </div>
+
+            <div id="prompt-modal" class="modal hidden">
+                <div class="modal-content card">
+                    <h3>Coach Settings</h3>
+                    <p class="muted-text mt-2" style="font-size: 14px;">Edit Gemini's system prompt:</p>
+                    
+                    <textarea id="system-prompt-input" rows="6" style="width: 100%; margin-top: 12px; background: #000; color: #fff; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; font-size: 14px;"></textarea>
+                    
+                    <div class="row mt-3">
+                        <button id="cancel-prompt-btn" class="half">Cancel</button>
+                        <button id="save-prompt-btn" class="primary-btn half">Save</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
