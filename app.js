@@ -7,7 +7,9 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 let appState = {
     categories: [],
     exercises: [],
-    logs: []
+    logs: [],
+    selectedCategoryId: null,
+    selectedExerciseId: null,
 };
 
 async function loadDatabaseData() {
@@ -22,7 +24,7 @@ async function loadDatabaseData() {
     // --- THE EMPTY STATE UX FIX ---
     if (appState.categories.length === 0) {
         // Give a helpful prompt in the empty space
-        elements.dynamicFieldsContainer.innerHTML = '<p class="muted-text" style="color: var(--primary-blue); text-align: center; padding: 20px;">Welcome! 💪🏽<br><br>Start by clicking "+ New" next to <b>Category</b> to set up your first split.</p>';
+        elements.dynamicFieldsContainer.innerHTML = '<p class="muted-text" style="color: var(--primary-green); text-align: center; padding: 20px;">Welcome! 💪🏽<br><br>Start by clicking "+ New" next to <b>Category</b> to set up your first split.</p>';
         
         // Visually disable and lock the Add Exercise button
         elements.addExerciseBtn.style.opacity = '0.3';
@@ -32,14 +34,12 @@ async function loadDatabaseData() {
 
 // --- 3. DOM ELEMENTS ---
 const elements = {
-    hamburgerBtn: document.getElementById('hamburger-btn'),
-    sideMenu: document.getElementById('side-menu'),
     navItems: document.querySelectorAll('.nav-item'),
     viewSections: document.querySelectorAll('.view-section'),
     viewTitle: document.getElementById('current-view-title'),
     
-    categorySelect: document.getElementById('category-select'),
-    exerciseSelect: document.getElementById('exercise-select'),
+    categoryGrid: document.getElementById('category-grid'),
+    exerciseGrid: document.getElementById('exercise-grid'),
     addCategoryBtn: document.getElementById('add-category-btn'),
     addExerciseBtn: document.getElementById('add-exercise-btn'),
     
@@ -55,47 +55,65 @@ const elements = {
 };
 
 // --- 4. UI & NAVIGATION LOGIC ---
-elements.hamburgerBtn.addEventListener('click', () => {
-    elements.sideMenu.classList.toggle('hidden');
-});
-
 elements.navItems.forEach(item => {
     item.addEventListener('click', (e) => {
         elements.viewSections.forEach(view => view.classList.add('hidden'));
         elements.navItems.forEach(nav => nav.classList.remove('active'));
         
-        const targetId = e.target.getAttribute('data-target');
+        const targetId = e.currentTarget.getAttribute('data-target');
         document.getElementById(targetId).classList.remove('hidden');
         
-        e.target.classList.add('active');
-        elements.viewTitle.textContent = e.target.textContent;
-        elements.sideMenu.classList.add('hidden'); 
+        e.currentTarget.classList.add('active');
+        elements.viewTitle.textContent = e.currentTarget.querySelector('span:not(.material-icons)').textContent;
     });
 });
 
 // --- 5. RENDERING LOGIC ---
 function renderCategories() {
-    elements.categorySelect.innerHTML = '<option value="" disabled selected>Select Category...</option>';
+    elements.categoryGrid.innerHTML = '';
     appState.categories.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat.id;
-        option.textContent = cat.name;
-        elements.categorySelect.appendChild(option);
+        const btn = document.createElement('button');
+        btn.className = 'grid-btn';
+        if (appState.selectedCategoryId === cat.id) btn.classList.add('active');
+        btn.textContent = cat.name;
+        
+        btn.addEventListener('click', () => {
+            appState.selectedCategoryId = cat.id;
+            appState.selectedExerciseId = null; 
+            renderCategories(); // refresh active state
+            renderExercises(cat.id);
+            
+            elements.dynamicFieldsContainer.innerHTML = '<p class="muted-text">Select an exercise to log data.</p>';
+            elements.saveSetBtn.classList.add('hidden');
+            elements.addExerciseBtn.style.opacity = '1';
+            elements.addExerciseBtn.style.pointerEvents = 'auto';
+        });
+        
+        elements.categoryGrid.appendChild(btn);
     });
 }
 
 function renderExercises(categoryId) {
-    elements.exerciseSelect.innerHTML = '<option value="" disabled selected>Select Exercise...</option>';
-    elements.exerciseSelect.disabled = false;
-    
-    // The foreign key in your Supabase table is 'category_id'
+    elements.exerciseGrid.innerHTML = '';
     const filteredExercises = appState.exercises.filter(ex => ex.category_id === categoryId);
     
+    if (filteredExercises.length === 0) {
+        elements.exerciseGrid.innerHTML = '<p class="muted-text" style="grid-column: span 2;">No exercises yet.</p>';
+        return;
+    }
+
     filteredExercises.forEach(ex => {
-        const option = document.createElement('option');
-        option.value = ex.id;
-        option.textContent = ex.name;
-        elements.exerciseSelect.appendChild(option);
+        const btn = document.createElement('button');
+        btn.className = 'grid-btn';
+        if (appState.selectedExerciseId === ex.id) btn.classList.add('active');
+        btn.textContent = ex.name;
+        
+        btn.addEventListener('click', () => {
+            appState.selectedExerciseId = ex.id;
+            renderExercises(categoryId); // refresh active state
+            renderInputFields(ex.id);
+        });
+        elements.exerciseGrid.appendChild(btn);
     });
 }
 
@@ -151,24 +169,6 @@ function renderInputFields(exerciseId) {
 
 // --- 6. EVENT LISTENERS ---
 
-// When Category Changes -> Render Exercises and Unlock Button
-elements.categorySelect.addEventListener('change', (e) => {
-    const categoryId = e.target.value;
-    renderExercises(categoryId);
-    
-    elements.dynamicFieldsContainer.innerHTML = '<p class="muted-text">Select an exercise to log data.</p>';
-    elements.saveSetBtn.classList.add('hidden');
-
-    // --- UNLOCK THE EXERCISE BUTTON ---
-    elements.addExerciseBtn.style.opacity = '1';
-    elements.addExerciseBtn.style.pointerEvents = 'auto';
-});
-
-// When Exercise Changes -> Render Dynamic Inputs
-elements.exerciseSelect.addEventListener('change', (e) => {
-    renderInputFields(e.target.value);
-});
-
 // Create Category (Saves directly to Supabase)
 elements.addCategoryBtn.addEventListener('click', async () => {
     const name = prompt("Enter new category name (e.g., Legs):");
@@ -184,15 +184,20 @@ elements.addCategoryBtn.addEventListener('click', async () => {
         alert("Error creating category.");
     } else {
         appState.categories.push(data[0]);
+        appState.selectedCategoryId = data[0].id;
         renderCategories();
-        elements.categorySelect.value = data[0].id;
-        elements.categorySelect.dispatchEvent(new Event('change'));
+        renderExercises(data[0].id);
+        
+        elements.dynamicFieldsContainer.innerHTML = '<p class="muted-text">Select an exercise to log data.</p>';
+        elements.saveSetBtn.classList.add('hidden');
+        elements.addExerciseBtn.style.opacity = '1';
+        elements.addExerciseBtn.style.pointerEvents = 'auto';
     }
 });
 
 // Open Exercise Modal (With strict safety check)
 elements.addExerciseBtn.addEventListener('click', () => {
-    const categoryId = elements.categorySelect.value;
+    const categoryId = appState.selectedCategoryId;
     if (!categoryId) {
         alert("Please create and select a Category from the dropdown before adding an exercise!");
         return;
@@ -203,7 +208,7 @@ elements.addExerciseBtn.addEventListener('click', () => {
 // Save New Exercise (With strict safety check)
 elements.saveExBtn.addEventListener('click', async () => {
     const name = elements.newExNameInput.value;
-    const categoryId = elements.categorySelect.value;
+    const categoryId = appState.selectedCategoryId;
     
     // Safety Check 1: Ensure a category is actually selected
     if (!categoryId) {
@@ -236,10 +241,10 @@ elements.saveExBtn.addEventListener('click', async () => {
         alert("Database Error: " + error.message);
     } else {
         appState.exercises.push(data[0]);
+        appState.selectedExerciseId = data[0].id;
         renderExercises(categoryId);
-        elements.exerciseSelect.value = data[0].id;
-        elements.exerciseSelect.dispatchEvent(new Event('change'));
-        elements.cancelExBtn.click(); // Reset and close modal
+        renderInputFields(data[0].id);
+        elements.cancelExBtn.click(); 
     }
 });
 
@@ -253,7 +258,7 @@ elements.cancelExBtn.addEventListener('click', () => {
 
 // Save Set Data
 elements.saveSetBtn.addEventListener('click', async () => {
-    const exerciseId = elements.exerciseSelect.value;
+    const exerciseId = appState.selectedExerciseId;
     const currentExercise = appState.exercises.find(ex => ex.id === exerciseId);
     let payload = {};
 
@@ -290,9 +295,9 @@ elements.saveSetBtn.addEventListener('click', async () => {
 
 // --- 8. ANALYTICS & PLOTTING ---
 const plotElements = {
-    exerciseSelect: document.getElementById('plot-exercise-select'),
+    exerciseChips: document.getElementById('plot-exercise-chips'),
     metricContainer: document.getElementById('plot-metric-container'),
-    metricSelect: document.getElementById('plot-metric-select'),
+    metricChips: document.getElementById('plot-metric-chips'),
     chartCard: document.getElementById('chart-card'),
     ctx: document.getElementById('analytics-chart').getContext('2d')
 };
@@ -318,59 +323,54 @@ document.querySelector('[data-target="view-analytics"]').addEventListener('click
 });
 
 function populatePlotterExercises() {
-    plotElements.exerciseSelect.innerHTML = '<option value="" disabled selected>Select Exercise...</option>';
+    plotElements.exerciseChips.innerHTML = '';
     
     // Find unique exercise IDs in our logs
     const uniqueExIds = [...new Set(appState.logs.map(log => log.exercise_id))];
     
     uniqueExIds.forEach(id => {
-        // Look up the name from our local state
         const exercise = appState.exercises.find(ex => ex.id === id);
         if (exercise) {
-            const option = document.createElement('option');
-            option.value = exercise.id;
-            option.textContent = exercise.name;
-            plotElements.exerciseSelect.appendChild(option);
+            const chip = document.createElement('div');
+            chip.className = 'chip';
+            chip.textContent = exercise.name;
+            chip.addEventListener('click', () => {
+                Array.from(plotElements.exerciseChips.children).forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                
+                appState.plotSelectedExerciseId = id;
+                populatePlotterMetrics(exercise);
+            });
+            plotElements.exerciseChips.appendChild(chip);
         }
     });
 }
 
-// When an exercise is chosen, reveal the Y-Axis options
-plotElements.exerciseSelect.addEventListener('change', (e) => {
-    const exId = e.target.value;
-    const exercise = appState.exercises.find(ex => ex.id === exId);
-    
-    plotElements.metricSelect.innerHTML = '<option value="" disabled selected>Select Metric...</option>';
-    
-    // Populate dropdown based on what this specific exercise tracks
-    exercise.tracking_fields.forEach(field => {
-        const option = document.createElement('option');
-        option.value = field;
-        option.textContent = field.charAt(0).toUpperCase() + field.slice(1);
-        plotElements.metricSelect.appendChild(option);
-    });
-
+function populatePlotterMetrics(exercise) {
+    plotElements.metricChips.innerHTML = '';
     plotElements.metricContainer.classList.remove('hidden');
-    plotElements.chartCard.classList.add('hidden'); // Hide chart until metric is picked
-});
-
-// When a metric is chosen, draw the graph
-plotElements.metricSelect.addEventListener('change', (e) => {
-    const exId = plotElements.exerciseSelect.value;
-    const metric = e.target.value;
+    plotElements.chartCard.classList.add('hidden');
     
-    // Filter logs for this exercise, and only keep rows where this metric exists
-    const relevantLogs = appState.logs.filter(log => log.exercise_id === exId && log.logged_data[metric] !== undefined);
-
-    // Prepare data arrays for Chart.js
-    const labels = relevantLogs.map(log => {
-        const date = new Date(log.created_at);
-        return `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+    exercise.tracking_fields.forEach(field => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.textContent = field.charAt(0).toUpperCase() + field.slice(1);
+        chip.addEventListener('click', () => {
+            Array.from(plotElements.metricChips.children).forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            
+            const relevantLogs = appState.logs.filter(log => log.exercise_id === exercise.id && log.logged_data[field] !== undefined);
+            const labels = relevantLogs.map(log => {
+                const date = new Date(log.created_at);
+                return `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+            });
+            const dataPoints = relevantLogs.map(log => log.logged_data[field]);
+            
+            drawChart(labels, dataPoints, field);
+        });
+        plotElements.metricChips.appendChild(chip);
     });
-    const dataPoints = relevantLogs.map(log => log.logged_data[metric]);
-
-    drawChart(labels, dataPoints, metric);
-});
+}
 
 function drawChart(labels, dataPoints, metricName) {
     plotElements.chartCard.classList.remove('hidden');
@@ -385,20 +385,20 @@ function drawChart(labels, dataPoints, metricName) {
             datasets: [{
                 label: metricName.toUpperCase(),
                 data: dataPoints,
-                borderColor: '#0a84ff', // iOS Blue
-                backgroundColor: 'rgba(10, 132, 255, 0.1)',
+                borderColor: '#6ffb85', 
+                backgroundColor: 'rgba(111, 251, 133, 0.1)',
                 borderWidth: 3,
                 tension: 0.3, // Adds a slight curve to the line
                 pointBackgroundColor: '#ffffff',
-                pointRadius: 4
+                pointRadius: 3
             }]
         },
         options: {
             responsive: true,
             color: '#ffffff',
             scales: {
-                y: { grid: { color: '#38383a' }, ticks: { color: '#8e8e93' } },
-                x: { grid: { display: false }, ticks: { color: '#8e8e93' } }
+                y: { grid: { display: false }, ticks: { color: '#acaaad' } },
+                x: { grid: { display: false }, ticks: { color: '#acaaad' } }
             },
             plugins: {
                 legend: { labels: { color: '#ffffff' } }

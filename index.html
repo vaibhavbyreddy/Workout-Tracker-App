@@ -9,6 +9,7 @@
     <title>AI Workout Tracker</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22white%22/><text y=%22.9em%22 font-size=%2280%22>💪🏽</text></svg>">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22white%22/><text y=%22.9em%22 font-size=%2280%22>💪🏽</text></svg>">
@@ -16,17 +17,8 @@
 <body>
 
     <header class="top-bar">
-        <button id="hamburger-btn" class="icon-btn">☰</button>
         <h1 id="current-view-title">Log Workout</h1>
-        <div class="spacer"></div>
     </header>
-
-    <nav id="side-menu" class="hidden">
-        <button class="nav-item active" data-target="view-log-workout">Log Workout</button>
-        <button class="nav-item" data-target="view-log-weight">Log Weight</button>
-        <button class="nav-item" data-target="view-analytics">Data Analysis</button>
-        <button class="nav-item" data-target="view-ai-chat">Gemini Coach</button>
-    </nav>
 
     <main>
         <section id="view-log-workout" class="view-section">
@@ -36,17 +28,15 @@
                     <label for="category-select">Category</label>
                     <button class="text-btn" id="add-category-btn">+ New</button>
                 </div>
-                <select id="category-select">
-                    <option value="" disabled selected>Select Category...</option>
-                </select>
+                <div id="category-grid" class="button-grid"></div>
 
                 <div class="header-with-action mt-3">
                     <label for="exercise-select">Exercise</label>
                     <button class="text-btn" id="add-exercise-btn">+ New</button>
                 </div>
-                <select id="exercise-select" disabled>
-                    <option value="" disabled selected>Select Category First...</option>
-                </select>
+                <div id="exercise-grid" class="button-grid">
+                    <p class="muted-text" style="grid-column: span 2;">Select Category First...</p>
+                </div>
             </div>
 
             <div class="card" id="dynamic-fields-card">
@@ -99,16 +89,12 @@
                 
                 <div class="input-group">
                     <label>Select Exercise</label>
-                    <select id="plot-exercise-select">
-                        <option value="" disabled selected>Loading...</option>
-                    </select>
+                    <div id="plot-exercise-chips" class="horizontal-chips"></div>
                 </div>
 
                 <div class="input-group mt-3 hidden" id="plot-metric-container">
                     <label>Plot on Y-Axis</label>
-                    <select id="plot-metric-select">
-                        <option value="" disabled selected>Select Metric...</option>
-                    </select>
+                    <div id="plot-metric-chips" class="horizontal-chips"></div>
                 </div>
             </div>
 
@@ -155,6 +141,25 @@
             </div>
         </section>
     </main>
+
+    <nav class="bottom-nav">
+        <button class="nav-item active" data-target="view-log-workout">
+            <span class="material-icons">edit_note</span>
+            <span>Log</span>
+        </button>
+        <button class="nav-item" data-target="view-log-weight">
+            <span class="material-icons">monitor_weight</span>
+            <span>Weight</span>
+        </button>
+        <button class="nav-item" data-target="view-analytics">
+            <span class="material-icons">insights</span>
+            <span>Progress</span>
+        </button>
+        <button class="nav-item" data-target="view-ai-chat">
+            <span class="material-icons">smart_toy</span>
+            <span>Coach</span>
+        </button>
+    </nav>
 
     <script src="app.js"></script>
 </body>
