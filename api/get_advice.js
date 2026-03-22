@@ -34,8 +34,11 @@ export default async function handler(req, res) {
         // Send it back to your iPhone screen
         res.status(200).json({ advice: aiText });
 
-    } catch (error) {
+
+    } 
+    catch (error) {
         console.error("Gemini API Error:", error);
-        res.status(500).json({ error: 'Failed to fetch AI advice' });
+        // This sends the actual technical error back to your app for debugging
+        res.status(500).json({ error: error.message, detail: error.stack });
     }
 }
