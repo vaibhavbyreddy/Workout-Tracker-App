@@ -17,7 +17,7 @@
 <body>
 
     <header class="top-bar">
-        <h1 id="current-view-title">Log Workout</h1>
+        <h1 id="current-view-title">LIFTS</h1>
     </header>
 
     <main>
@@ -25,7 +25,7 @@
             
             <div class="card">
                 <div class="header-with-action">
-                    <label for="category-select">Category</label>
+                    <label for="category-select">Workout</label>
                     <button class="text-btn" id="add-category-btn">+ New</button>
                 </div>
                 <div id="category-grid" class="button-grid"></div>
@@ -34,16 +34,24 @@
                     <label for="exercise-select">Exercise</label>
                     <button class="text-btn" id="add-exercise-btn">+ New</button>
                 </div>
-                <div id="exercise-grid" class="button-grid">
-                    <p class="muted-text" style="grid-column: span 2;">Select Category First...</p>
+                <div id="exercise-chips" class="horizontal-chips">
+                    <p class="muted-text">Select Category First...</p>
                 </div>
             </div>
 
-            <div class="card" id="dynamic-fields-card">
+            <div class="card hidden" id="log-set-card">
+                <div class="header-with-action">
+                    <h3 id="log-set-title">Log 1st Set:</h3>
+                    <div id="pr-display"></div>
+                </div>
+                <div id="log-set-inputs"></div>
+                <button id="save-set-btn" class="primary-btn mt-3">SAVE SET</button>
+            </div>
+            <div class="card hidden" id="dynamic-fields-card">
                 <div id="dynamic-fields-container">
                     <p class="muted-text">Select an exercise to log data.</p>
                 </div>
-                <button id="save-set-btn" class="primary-btn mt-3 hidden">Log Set</button>
+                <button id="save-set-btn" class="primary-btn mt-3 hidden">SAVE SET</button>
             </div>
 
             <div id="exercise-modal" class="modal hidden">
@@ -62,12 +70,20 @@
                         <label><input type="checkbox" value="calories" class="track-cb"> Calories</label>
                         <label><input type="checkbox" value="form" class="track-cb"> Form</label>
                         <label><input type="checkbox" value="intensity" class="track-cb"> Intensity</label>
+                        <label><input type="checkbox" value="quality" class="track-cb"> Quality</label>
                     </div>
                     
                     <div class="row mt-3">
                         <button id="cancel-ex-btn" class="half">Cancel</button>
                         <button id="save-ex-btn" class="primary-btn half">Save</button>
                     </div>
+                </div>
+            </div>
+
+            <div class="card" id="recent-sets-card">
+                <h3>Recent Sets (Last 5 hours)</h3>
+                <div id="recent-sets-list">
+                    <p class="muted-text">No sets logged recently.</p>
                 </div>
             </div>
         </section>

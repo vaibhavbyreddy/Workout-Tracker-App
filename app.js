@@ -19,12 +19,16 @@ async function loadDatabaseData() {
     const { data: exData, error: exErr } = await supabaseClient.from('exercises').select('*');
     if (!exErr) appState.exercises = exData;
 
+    const { data: logData, error: logErr } = await supabaseClient.from('workout_logs').select('*');
+    if (!logErr) appState.logs = logData;
+
     renderCategories();
+    renderRecentSets();
 
     // --- THE EMPTY STATE UX FIX ---
     if (appState.categories.length === 0) {
         // Give a helpful prompt in the empty space
-        elements.dynamicFieldsContainer.innerHTML = '<p class="muted-text" style="color: var(--primary-green); text-align: center; padding: 20px;">Welcome! 💪🏽<br><br>Start by clicking "+ New" next to <b>Category</b> to set up your first split.</p>';
+        elements.dynamicFieldsCard.innerHTML = '<p class="muted-text" style="color: var(--primary-green); text-align: center; padding: 20px;">Welcome! 💪🏽<br><br>Start by clicking "+ New" next to <b>Category</b> to set up your first split.</p>';
         
         // Visually disable and lock the Add Exercise button
         elements.addExerciseBtn.style.opacity = '0.3';
@@ -39,19 +43,27 @@ const elements = {
     viewTitle: document.getElementById('current-view-title'),
     
     categoryGrid: document.getElementById('category-grid'),
-    exerciseGrid: document.getElementById('exercise-grid'),
+    exerciseChips: document.getElementById('exercise-chips'),
     addCategoryBtn: document.getElementById('add-category-btn'),
     addExerciseBtn: document.getElementById('add-exercise-btn'),
     
-    dynamicFieldsContainer: document.getElementById('dynamic-fields-container'),
+    logSetCard: document.getElementById('log-set-card'),
+    logSetTitle: document.getElementById('log-set-title'),
+    prDisplay: document.getElementById('pr-display'),
+    logSetInputs: document.getElementById('log-set-inputs'),
     saveSetBtn: document.getElementById('save-set-btn'),
+
+    dynamicFieldsCard: document.getElementById('dynamic-fields-card'),
 
     // Modal Elements
     exerciseModal: document.getElementById('exercise-modal'),
     newExNameInput: document.getElementById('new-ex-name'),
     cancelExBtn: document.getElementById('cancel-ex-btn'),
     saveExBtn: document.getElementById('save-ex-btn'),
-    trackCheckboxes: document.querySelectorAll('.track-cb')
+    trackCheckboxes: document.querySelectorAll('.track-cb'),
+
+    recentSetsCard: document.getElementById('recent-sets-card'),
+    recentSetsList: document.getElementById('recent-sets-list')
 };
 
 // --- 4. UI & NAVIGATION LOGIC ---
@@ -75,16 +87,29 @@ function renderCategories() {
         const btn = document.createElement('button');
         btn.className = 'grid-btn';
         if (appState.selectedCategoryId === cat.id) btn.classList.add('active');
-        btn.textContent = cat.name;
         
-        btn.addEventListener('click', () => {
+        btn.innerHTML = `
+            <span class="edit-emoji-btn">✏️</span>
+            ${cat.name}
+        `;
+        
+        btn.addEventListener('click', (e) => {
+            if (e.target.classList.contains('edit-emoji-btn')) {
+                const newEmoji = prompt("Enter a new emoji for this category:");
+                if (newEmoji) {
+                    // In a real app, you'd save this to the database
+                    console.log(`New emoji for ${cat.name}: ${newEmoji}`);
+                }
+                return; 
+            }
+
             appState.selectedCategoryId = cat.id;
             appState.selectedExerciseId = null; 
             renderCategories(); // refresh active state
             renderExercises(cat.id);
             
-            elements.dynamicFieldsContainer.innerHTML = '<p class="muted-text">Select an exercise to log data.</p>';
-            elements.saveSetBtn.classList.add('hidden');
+            elements.logSetCard.classList.add('hidden');
+            elements.dynamicFieldsCard.classList.remove('hidden');
             elements.addExerciseBtn.style.opacity = '1';
             elements.addExerciseBtn.style.pointerEvents = 'auto';
         });
@@ -94,76 +119,164 @@ function renderCategories() {
 }
 
 function renderExercises(categoryId) {
-    elements.exerciseGrid.innerHTML = '';
+    elements.exerciseChips.innerHTML = '';
     const filteredExercises = appState.exercises.filter(ex => ex.category_id === categoryId);
     
     if (filteredExercises.length === 0) {
-        elements.exerciseGrid.innerHTML = '<p class="muted-text" style="grid-column: span 2;">No exercises yet.</p>';
+        elements.exerciseChips.innerHTML = '<p class="muted-text">No exercises yet.</p>';
         return;
     }
 
+    const now = new Date();
+    const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+
+    const recentlyLoggedExIds = new Set(
+        appState.logs
+            .filter(log => new Date(log.created_at) > fiveHoursAgo)
+            .map(log => log.exercise_id)
+    );
+
+    filteredExercises.sort((a, b) => {
+        const aLogged = recentlyLoggedExIds.has(a.id);
+        const bLogged = recentlyLoggedExIds.has(b.id);
+        if (aLogged && !bLogged) return 1;
+        if (!aLogged && bLogged) return -1;
+        return 0;
+    });
+
     filteredExercises.forEach(ex => {
-        const btn = document.createElement('button');
-        btn.className = 'grid-btn';
-        if (appState.selectedExerciseId === ex.id) btn.classList.add('active');
-        btn.textContent = ex.name;
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        if (appState.selectedExerciseId === ex.id) chip.classList.add('active');
+        if (recentlyLoggedExIds.has(ex.id)) chip.classList.add('completed');
+        chip.textContent = ex.name;
         
-        btn.addEventListener('click', () => {
+        chip.addEventListener('click', () => {
             appState.selectedExerciseId = ex.id;
             renderExercises(categoryId); // refresh active state
             renderInputFields(ex.id);
+            elements.logSetCard.classList.remove('hidden');
+            elements.dynamicFieldsCard.classList.add('hidden');
         });
-        elements.exerciseGrid.appendChild(btn);
+        elements.exerciseChips.appendChild(chip);
     });
 }
 
 function renderInputFields(exerciseId) {
-    elements.dynamicFieldsContainer.innerHTML = ''; 
+    elements.logSetInputs.innerHTML = ''; 
     const exercise = appState.exercises.find(ex => ex.id === exerciseId);
     
     if (!exercise) {
-        elements.saveSetBtn.classList.add('hidden');
+        elements.logSetCard.classList.add('hidden');
+        elements.dynamicFieldsCard.classList.remove('hidden');
         return;
     }
 
-    elements.saveSetBtn.classList.remove('hidden');
+    const now = new Date();
+    const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
 
-    // Supabase stores the array as 'tracking_fields'
+    const setsInLast5Hours = appState.logs.filter(log => 
+        log.exercise_id === exerciseId && 
+        new Date(log.created_at) > fiveHoursAgo
+    ).length;
+
+    elements.logSetTitle.textContent = `Log ${setsInLast5Hours + 1}th Set:`;
+
+    const allLogsForExercise = appState.logs.filter(log => log.exercise_id === exerciseId && log.logged_data.weight);
+    let pr = { weight: 0, reps: 0 };
+    if (allLogsForExercise.length > 0) {
+        const maxWeightLog = allLogsForExercise.reduce((max, log) => 
+            log.logged_data.weight > max.logged_data.weight ? log : max
+        );
+        pr.weight = maxWeightLog.logged_data.weight;
+        pr.reps = maxWeightLog.logged_data.reps;
+    }
+
+    elements.prDisplay.textContent = `PR: ${pr.weight}kg x ${pr.reps}reps`;
+    
     exercise.tracking_fields.forEach(field => {
         const inputDiv = document.createElement('div');
         inputDiv.className = 'input-group';
         const labelText = field.charAt(0).toUpperCase() + field.slice(1);
         
-        // Form gets 1-5, Intensity gets RIR mapping, everything else gets a number input
-        if (field === 'form') {
+        if (field === 'quality') {
             inputDiv.innerHTML = `
-                <label>Form</label>
-                <select id="input-${field}">
-                    <option value="5">5 - Perfect</option>
-                    <option value="4">4 - Good</option>
-                    <option value="3">3 - Acceptable</option>
-                    <option value="2">2 - Poor</option>
-                    <option value="1">1 - Bad / Injury Risk</option>
-                </select>
+                <label>Quality</label>
+                <div class="rating" id="input-quality">
+                    <span class="star" data-value="1">★</span>
+                    <span class="star" data-value="2">★</span>
+                    <span class="star" data-value="3">★</span>
+                    <span class="star" data-value="4">★</span>
+                    <span class="star" data-value="5">★</span>
+                </div>
             `;
+            inputDiv.querySelector('.rating').addEventListener('click', e => {
+                if (e.target.classList.contains('star')) {
+                    const value = e.target.getAttribute('data-value');
+                    inputDiv.querySelectorAll('.star').forEach(star => {
+                        star.classList.toggle('selected', star.getAttribute('data-value') <= value);
+                    });
+                }
+            });
+
         } else if (field === 'intensity') {
-            // Values are numeric approximations of RIR so the chart can plot them on a Y-axis
             inputDiv.innerHTML = `
-                <label>Intensity</label>
-                <select id="input-${field}">
-                    <option value="0">Failure (0 RIR)</option>
-                    <option value="1.5">1-2 RIR</option>
-                    <option value="4">3-5 RIR</option>
-                    <option value="8">6-10 RIR</option>
+                <label>Intensity (RIR)</label>
+                <select id="input-intensity">
+                    <option value="0">0 (Failure)</option>
+                    <option value="1.5">1-2</option>
+                    <option value="4">3-5</option>
+                    <option value="8">6-10</option>
                 </select>
             `;
-        } else {
-            inputDiv.innerHTML = `
+        } else if (field === 'weight' || field === 'reps') {
+             inputDiv.innerHTML = `
                 <label>${labelText}</label>
                 <input type="number" id="input-${field}" inputmode="decimal">
             `;
         }
-        elements.dynamicFieldsContainer.appendChild(inputDiv);
+        
+        elements.logSetInputs.appendChild(inputDiv);
+    });
+}
+
+function renderRecentSets() {
+    elements.recentSetsList.innerHTML = '';
+    const now = new Date();
+    const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+
+    const recentLogs = appState.logs
+        .filter(log => new Date(log.created_at) > fiveHoursAgo)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    if (recentLogs.length === 0) {
+        elements.recentSetsList.innerHTML = '<p class="muted-text">No sets logged recently.</p>';
+        return;
+    }
+
+    recentLogs.forEach(log => {
+        const exercise = appState.exercises.find(ex => ex.id === log.exercise_id);
+        if (!exercise) return;
+
+        const item = document.createElement('div');
+        item.className = 'recent-set-item';
+        
+        const time = new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        item.innerHTML = `
+            <span class="exercise-name">${exercise.name}</span>
+            <span class="time">${time}</span>
+        `;
+
+        item.addEventListener('click', () => {
+            let details = `Set Details (${exercise.name} at ${time}):\n\n`;
+            for (const key in log.logged_data) {
+                details += `${key.charAt(0).toUpperCase() + key.slice(1)}: ${log.logged_data[key]}\n`;
+            }
+            alert(details);
+        });
+
+        elements.recentSetsList.appendChild(item);
     });
 }
 
@@ -188,8 +301,8 @@ elements.addCategoryBtn.addEventListener('click', async () => {
         renderCategories();
         renderExercises(data[0].id);
         
-        elements.dynamicFieldsContainer.innerHTML = '<p class="muted-text">Select an exercise to log data.</p>';
-        elements.saveSetBtn.classList.add('hidden');
+        elements.logSetCard.classList.add('hidden');
+        elements.dynamicFieldsCard.classList.remove('hidden');
         elements.addExerciseBtn.style.opacity = '1';
         elements.addExerciseBtn.style.pointerEvents = 'auto';
     }
@@ -245,6 +358,8 @@ elements.saveExBtn.addEventListener('click', async () => {
         renderExercises(categoryId);
         renderInputFields(data[0].id);
         elements.cancelExBtn.click(); 
+        elements.logSetCard.classList.remove('hidden');
+        elements.dynamicFieldsCard.classList.add('hidden');
     }
 });
 
@@ -266,6 +381,11 @@ elements.saveSetBtn.addEventListener('click', async () => {
         const inputElement = document.getElementById(`input-${field}`);
         if (inputElement && inputElement.value) {
             payload[field] = parseFloat(inputElement.value); 
+        } else if (field === 'quality') {
+            const selectedStar = document.querySelector('#input-quality .star.selected:last-child');
+            if (selectedStar) {
+                payload[field] = parseInt(selectedStar.getAttribute('data-value'));
+            }
         }
     });
 
@@ -274,20 +394,27 @@ elements.saveSetBtn.addEventListener('click', async () => {
         return;
     }
 
-    const { error } = await supabaseClient
+    const { data, error } = await supabaseClient
         .from('workout_logs')
-        .insert([{ exercise_id: exerciseId, logged_data: payload }]);
+        .insert([{ exercise_id: exerciseId, logged_data: payload }])
+        .select();
 
     if (error) {
         console.error("Error saving:", error);
         alert("Failed to save set.");
     } else {
         alert("Set logged successfully! 💪🏽");
+        appState.logs.push(data[0]);
+        renderRecentSets();
+        renderExercises(appState.selectedCategoryId);
+        renderInputFields(exerciseId);
         // Clear inputs for the next set
         currentExercise.tracking_fields.forEach(field => {
-            if(field !== 'quality') {
-               const inputElement = document.getElementById(`input-${field}`);
-               if(inputElement) inputElement.value = '';
+            const inputElement = document.getElementById(`input-${field}`);
+            if (inputElement && field !== 'quality') {
+               inputElement.value = '';
+            } else if (field === 'quality') {
+                document.querySelectorAll('#input-quality .star').forEach(star => star.classList.remove('selected'));
             }
         });
     }
