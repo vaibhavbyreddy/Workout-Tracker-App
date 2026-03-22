@@ -88,20 +88,9 @@ function renderCategories() {
         btn.className = 'grid-btn';
         if (appState.selectedCategoryId === cat.id) btn.classList.add('active');
         
-        btn.innerHTML = `
-            <span class="edit-emoji-btn">✏️</span>
-            ${cat.name}
-        `;
+        btn.textContent = cat.name;
         
-        btn.addEventListener('click', (e) => {
-            if (e.target.classList.contains('edit-emoji-btn')) {
-                const newEmoji = prompt("Enter a new emoji for this category:");
-                if (newEmoji) {
-                    // In a real app, you'd save this to the database
-                    console.log(`New emoji for ${cat.name}: ${newEmoji}`);
-                }
-                return; 
-            }
+        btn.addEventListener('click', () => {
 
             appState.selectedCategoryId = cat.id;
             appState.selectedExerciseId = null; 
@@ -216,35 +205,28 @@ function renderInputFields(exerciseId) {
         inputDiv.className = 'input-group';
         const labelText = field.charAt(0).toUpperCase() + field.slice(1);
         
-        if (field === 'quality') {
+        if (field === 'quality' || field === 'form') {
+            inputDiv.classList.add('full-width');
             inputDiv.innerHTML = `
-                <label>Quality</label>
-                <div class="rating" id="input-quality">
-                    <span class="star" data-value="1">★</span>
-                    <span class="star" data-value="2">★</span>
-                    <span class="star" data-value="3">★</span>
-                    <span class="star" data-value="4">★</span>
-                    <span class="star" data-value="5">★</span>
+                <label>${labelText}</label>
+                <input type="range" id="input-${field}" min="1" max="5" step="1" value="3" class="slider">
+                <div class="slider-labels">
+                    <span>Poor</span>
+                    <span>Average</span>
+                    <span>Excellent</span>
                 </div>
             `;
-            inputDiv.querySelector('.rating').addEventListener('click', e => {
-                if (e.target.classList.contains('star')) {
-                    const value = e.target.getAttribute('data-value');
-                    inputDiv.querySelectorAll('.star').forEach(star => {
-                        star.classList.toggle('selected', star.getAttribute('data-value') <= value);
-                    });
-                }
-            });
-
         } else if (field === 'intensity') {
+            inputDiv.classList.add('full-width');
             inputDiv.innerHTML = `
                 <label>Intensity (RIR)</label>
-                <select id="input-intensity">
-                    <option value="0">0 (Failure)</option>
-                    <option value="1.5">1-2</option>
-                    <option value="4">3-5</option>
-                    <option value="8">6-10</option>
-                </select>
+                <input type="range" id="input-intensity" min="0" max="3" step="1" value="0" class="slider">
+                <div class="slider-labels">
+                    <span>Failure</span>
+                    <span>1-2</span>
+                    <span>3-5</span>
+                    <span>6-10</span>
+                </div>
             `;
         } else if (field === 'weight' || field === 'reps') {
              inputDiv.innerHTML = `
@@ -406,12 +388,12 @@ elements.saveSetBtn.addEventListener('click', async () => {
 
     currentExercise.tracking_fields.forEach(field => {
         const inputElement = document.getElementById(`input-${field}`);
-        if (inputElement && inputElement.value) {
-            payload[field] = parseFloat(inputElement.value); 
-        } else if (field === 'quality') {
-            const selectedStar = document.querySelector('#input-quality .star.selected:last-child');
-            if (selectedStar) {
-                payload[field] = parseInt(selectedStar.getAttribute('data-value'));
+        if (inputElement && inputElement.value !== '') {
+            if (field === 'intensity') {
+                const intensityMap = [0, 1.5, 4, 8];
+                payload[field] = intensityMap[parseInt(inputElement.value)];
+            } else {
+                payload[field] = parseFloat(inputElement.value); 
             }
         }
     });
@@ -438,10 +420,14 @@ elements.saveSetBtn.addEventListener('click', async () => {
         // Clear inputs for the next set
         currentExercise.tracking_fields.forEach(field => {
             const inputElement = document.getElementById(`input-${field}`);
-            if (inputElement && field !== 'quality') {
-               inputElement.value = '';
-            } else if (field === 'quality') {
-                document.querySelectorAll('#input-quality .star').forEach(star => star.classList.remove('selected'));
+            if (inputElement) {
+                if (field === 'quality' || field === 'form') {
+                    inputElement.value = '3';
+                } else if (field === 'intensity') {
+                    inputElement.value = '0';
+                } else {
+                    inputElement.value = '';
+                }
             }
         });
     }
