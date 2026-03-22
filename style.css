@@ -43,9 +43,12 @@ body {
 h1 {
     font-family: 'Plus Jakarta Sans', sans-serif;
     font-size: 32px;
-    font-weight: 800;
+    font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: -1px;
+    letter-spacing: -2px;
+    text-align: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 /* Fixed Bottom Navigation */
@@ -166,11 +169,11 @@ h1 {
 
 .chip {
     flex-shrink: 0;
-    padding: 8px 16px;
+    padding: 12px 20px;
     background: var(--bg-elevated);
     border: 1px solid var(--border-subtle);
     border-radius: 20px;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
     cursor: pointer;
 }
@@ -180,7 +183,7 @@ h1 {
 
 /* Log Set Card */
 #log-set-card {
-    background-color: var(--bg-surface);
+    background-color: #1a1a1c;
     border: 1px solid var(--primary-green);
 }
 
@@ -192,7 +195,8 @@ h1 {
 
 #pr-display {
     font-size: 14px;
-    color: var(--text-muted);
+    color: var(--primary-green);
+    font-weight: 600;
 }
 
 #log-set-inputs {
@@ -210,6 +214,8 @@ h1 {
     font-size: 24px;
     font-weight: 800;
     text-align: center;
+    padding: 20px;
+    width: 100%;
 }
 
 .rating {
@@ -232,32 +238,43 @@ h1 {
 /* Recent Sets Card */
 #recent-sets-card {
     margin-top: 16px;
+    background: linear-gradient(180deg, var(--bg-surface) 0%, #1a1a1c 100%);
+    border: none;
 }
 
 #recent-sets-list {
     margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .recent-set-item {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr auto;
     align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border-subtle);
+    padding: 12px;
+    background-color: var(--bg-elevated);
+    border-radius: 8px;
     cursor: pointer;
 }
 
-.recent-set-item:last-child {
-    border-bottom: none;
-}
-
 .recent-set-item .exercise-name {
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 16px;
 }
 
 .recent-set-item .time {
     color: var(--text-muted);
     font-size: 14px;
+    justify-self: end;
+}
+
+.recent-set-item .details {
+    grid-column: span 2;
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-top: 4px;
 }
 
 /* Base Forms */

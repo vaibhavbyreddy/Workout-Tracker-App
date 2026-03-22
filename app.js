@@ -132,7 +132,7 @@ function renderExercises(categoryId) {
 
     const recentlyLoggedExIds = new Set(
         appState.logs
-            .filter(log => new Date(log.created_at) > fiveHoursAgo)
+            .filter(log => new Date(log.created_at) > fiveHoursAgo && log.exercise_id !== appState.selectedExerciseId)
             .map(log => log.exercise_id)
     );
 
@@ -143,6 +143,17 @@ function renderExercises(categoryId) {
         if (!aLogged && bLogged) return -1;
         return 0;
     });
+
+    if (appState.selectedExerciseId) {
+        const selectedEx = filteredExercises.find(ex => ex.id === appState.selectedExerciseId);
+        if (selectedEx) {
+            const index = filteredExercises.indexOf(selectedEx);
+            if (index > -1) {
+                filteredExercises.splice(index, 1);
+                filteredExercises.unshift(selectedEx);
+            }
+        }
+    }
 
     filteredExercises.forEach(ex => {
         const chip = document.createElement('div');
@@ -160,6 +171,12 @@ function renderExercises(categoryId) {
         });
         elements.exerciseChips.appendChild(chip);
     });
+}
+
+function getOrdinal(n) {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 function renderInputFields(exerciseId) {
@@ -180,7 +197,7 @@ function renderInputFields(exerciseId) {
         new Date(log.created_at) > fiveHoursAgo
     ).length;
 
-    elements.logSetTitle.textContent = `Log ${setsInLast5Hours + 1}th Set:`;
+    elements.logSetTitle.textContent = `Log ${getOrdinal(setsInLast5Hours + 1)} Set:`;
 
     const allLogsForExercise = appState.logs.filter(log => log.exercise_id === exerciseId && log.logged_data.weight);
     let pr = { weight: 0, reps: 0 };
@@ -262,10 +279,20 @@ function renderRecentSets() {
         item.className = 'recent-set-item';
         
         const time = new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        let details = '';
+        if(log.logged_data.weight && log.logged_data.reps) {
+            details = `${log.logged_data.weight}kg x ${log.logged_data.reps} reps`;
+        } else {
+            for (const key in log.logged_data) {
+                details += `${key}: ${log.logged_data[key]} `;
+            }
+        }
+
 
         item.innerHTML = `
             <span class="exercise-name">${exercise.name}</span>
             <span class="time">${time}</span>
+            <span class="details">${details}</span>
         `;
 
         item.addEventListener('click', () => {
