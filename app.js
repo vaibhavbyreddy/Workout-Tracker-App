@@ -632,7 +632,7 @@ aiElements.getAdviceBtn.addEventListener('click', async () => {
 
     try {
         // Call your Vercel API endpoint
-        const response = await fetch('/api/get-advice', {
+        const response = await fetch('/api/get_advice', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
