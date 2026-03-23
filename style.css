@@ -80,7 +80,7 @@ h1 {
     align-items: center;
     
     /* ADJUST HEIGHT HERE: The first number (24px) is the top padding. Increase it to make the bar taller. */
-    padding: 64px 0 calc(24px + env(safe-area-inset-bottom)) 0;
+    padding: 36px 0 calc(32px + env(safe-area-inset-bottom)) 0;
     z-index: 999;
 }
 
