@@ -636,5 +636,89 @@ aiElements.getAdviceBtn.addEventListener('click', async () => {
     }
 });
 
-// --- 7. START APP ---
-loadDatabaseData();
+// --- 10. AUTHENTICATION & SESSIONS ---
+
+const authElements = {
+    viewAuth: document.getElementById('view-auth'),
+    emailInput: document.getElementById('auth-email'),
+    passwordInput: document.getElementById('auth-password'),
+    loginBtn: document.getElementById('login-btn'),
+    signupBtn: document.getElementById('signup-btn'),
+    logoutBtn: document.getElementById('logout-btn'),
+    authMsg: document.getElementById('auth-msg'),
+    bottomNav: document.querySelector('.bottom-nav')
+};
+
+// Check if user is already logged in when the app opens
+async function checkUserSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (session) {
+        // User is logged in! Hide auth, show app, load their specific data
+        authElements.viewAuth.classList.add('hidden');
+        elements.viewSections.forEach(view => view.classList.add('hidden'));
+        document.getElementById('view-log-workout').classList.remove('hidden');
+        
+        authElements.bottomNav.classList.remove('hidden');
+        authElements.logoutBtn.classList.remove('hidden');
+        
+        loadDatabaseData(); // Fetch data NOW
+    } else {
+        // No user. Show auth, hide app.
+        authElements.viewAuth.classList.remove('hidden');
+        elements.viewSections.forEach(view => {
+            if(view.id !== 'view-auth') view.classList.add('hidden');
+        });
+        authElements.bottomNav.classList.add('hidden');
+        authElements.logoutBtn.classList.add('hidden');
+    }
+}
+
+// Sign Up
+authElements.signupBtn.addEventListener('click', async () => {
+    const email = authElements.emailInput.value;
+    const password = authElements.passwordInput.value;
+    authElements.authMsg.textContent = "Loading...";
+
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+
+    if (error) {
+        authElements.authMsg.textContent = error.message;
+        authElements.authMsg.style.color = "#ff453a";
+    } else {
+        authElements.authMsg.textContent = "Success! You can now log in.";
+        authElements.authMsg.style.color = "var(--primary-green)";
+    }
+});
+
+// Log In
+authElements.loginBtn.addEventListener('click', async () => {
+    const email = authElements.emailInput.value;
+    const password = authElements.passwordInput.value;
+    authElements.authMsg.textContent = "Loading...";
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    if (error) {
+        authElements.authMsg.textContent = error.message;
+        authElements.authMsg.style.color = "#ff453a";
+    } else {
+        authElements.authMsg.textContent = "";
+        checkUserSession(); // Triggers the app to load
+    }
+});
+
+// Log Out
+authElements.logoutBtn.addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
+    
+    // Clear the local state so data doesn't leak between users
+    appState.categories = [];
+    appState.exercises = [];
+    appState.logs = [];
+    
+    checkUserSession(); // Kicks them back to the login screen
+});
+
+// Run this immediately when the script loads
+checkUserSession();
