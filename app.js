@@ -10,12 +10,12 @@ function generateAppIcon() {
     ctx.fillRect(0, 0, 512, 512);
 
     // 2. Set the emoji size (Change 280px to make it bigger or smaller)
-    ctx.font = '280px Arial'; 
+    ctx.font = '290px Arial'; 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
     // 3. Draw the emoji perfectly centered (Y is at 280 to optically center it)
-    ctx.fillText('💪🏽', 256, 280); 
+    ctx.fillText('💪🏽', 256, 290); 
 
     // 4. Convert it to a PNG
     const iconUrl = canvas.toDataURL('image/png');
