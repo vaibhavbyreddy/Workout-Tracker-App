@@ -1,3 +1,48 @@
+// --- 0. DYNAMIC APP ICON ---
+function generateAppIcon() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    // 1. Draw the sleek black background
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // 2. Set the emoji size (Change 280px to make it bigger or smaller)
+    ctx.font = '280px Arial'; 
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // 3. Draw the emoji perfectly centered (Y is at 280 to optically center it)
+    ctx.fillText('💪🏽', 256, 280); 
+
+    // 4. Convert it to a PNG
+    const iconUrl = canvas.toDataURL('image/png');
+    
+    // 5. Inject it for iOS Home Screen
+    let appleLink = document.querySelector('link[rel="apple-touch-icon"]');
+    if (!appleLink) {
+        appleLink = document.createElement('link');
+        appleLink.rel = 'apple-touch-icon';
+        document.head.appendChild(appleLink);
+    }
+    appleLink.href = iconUrl;
+
+    // 6. Inject it for standard browser tabs
+    let favicon = document.querySelector('link[rel="icon"]');
+    if (!favicon) {
+        favicon = document.createElement('link');
+        favicon.rel = 'icon';
+        document.head.appendChild(favicon);
+    }
+    favicon.href = iconUrl;
+}
+
+// Run it immediately!
+generateAppIcon();
+
+
 // --- 1. SUPABASE SETUP ---
 const supabaseUrl = 'https://jrqevdwotctdohgtyudx.supabase.co';
 const supabaseKey = 'sb_publishable_obWjnqgr4tJ0LVcVC5j3Tw_8kCWcsxT';
