@@ -1,9 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap');
 
 :root {
-    --bg-deep: #0e0e10;
-    --bg-surface: #131315;
-    --bg-elevated: #1f1f22;
+    --bg-deep: #161618; /* Lighter app background */
+    --bg-surface: #1e1e20; /* Lighter card background */
+    --bg-elevated: #2c2c2e; /* Lighter inputs for contrast */
     --primary-green: #6ffb85;
     --primary-glow: rgba(111, 251, 133, 0.4);
     --text-main: #fefbfe;
@@ -11,6 +11,7 @@
     --border-subtle: rgba(255, 255, 255, 0.05);
     --ai-purple: #bf5af2;
 }
+
 
 /* Inherit Inter font explicitly for all inputs and buttons */
 input, select, button, textarea {
@@ -59,18 +60,27 @@ h1 {
 }
 
 /* Fixed Bottom Navigation */
+/* Fixed Bottom Navigation */
 .bottom-nav {
     position: fixed;
     bottom: 0;
     left: 0;
     width: 100%;
-    background-color: rgba(19, 19, 21, 0.9);
+    
+    /* THE FADE EFFECT: Transparent at the top, fading to dark at the bottom */
+    background: linear-gradient(to bottom, rgba(14, 14, 16, 0) 0%, rgba(14, 14, 16, 0.85) 40%, rgba(14, 14, 16, 1) 100%);
+    
+    /* The Frosted Glass Blur */
     backdrop-filter: blur(16px);
-    border-top: 1px solid var(--border-subtle);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: none; /* Removes the harsh line */
+    
     display: flex;
     justify-content: space-around;
     align-items: center;
-    padding: 12px 0 calc(12px + env(safe-area-inset-bottom)) 0;
+    
+    /* ADJUST HEIGHT HERE: The first number (24px) is the top padding. Increase it to make the bar taller. */
+    padding: 64px 0 calc(24px + env(safe-area-inset-bottom)) 0;
     z-index: 999;
 }
 
@@ -101,11 +111,13 @@ h1 {
 /* Cards & Layout */
 .card {
     background-color: var(--bg-surface);
-    border-radius: 12px;
+    border-radius: 24px;
     border: 1px solid var(--border-subtle);
+    box-shadow: 0 14px 24px rgba(0, 0, 0, 0.75); /* Added subtle shadow */
     padding: 16px;
-    margin-bottom: 16px;
+    margin-bottom: 24px;
 }
+
 
 .header-with-action {
     display: flex;
@@ -178,15 +190,18 @@ h1 {
 .chip.completed { background: var(--bg-elevated); color: var(--text-muted); border-color: var(--border-subtle); }
 
 /* Log Set Card */
+
+
+/* Log Set Card */
 #log-set-card {
-    background-color: #1a1a1c;
-    border: 1px solid var(--primary-green);
+    /* Removed the hardcoded dark background and green border */
+    /* It now beautifully inherits the standard .card shadow and lighter background */
 }
 
 #log-set-title {
-    color: var(--primary-green);
-    font-size: 20px;
-    font-weight: 800;
+    color: var(--text-main); /* Changed to white for a cleaner look */
+    font-size: 28px; /* Much larger */
+    font-weight: 900;
 }
 
 #pr-display {
@@ -198,8 +213,9 @@ h1 {
 #log-set-inputs {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 16px;
     margin-top: 16px;
+    align-items: end; /* THE FIX: Forces side-by-side inputs to lock to the bottom edge uniformly */
 }
 
 #log-set-inputs .input-group {
@@ -207,10 +223,10 @@ h1 {
 }
 
 #log-set-inputs input[type="number"] {
-    font-size: 28px;
+    font-size: 52px;
     font-weight: 800;
     text-align: center;
-    padding: 24px;
+    padding: 12px;
     width: 100%;
     background-color: #000;
 }
@@ -219,9 +235,9 @@ h1 {
 .slider {
     -webkit-appearance: none;
     width: 100%;
-    height: 6px;
-    border-radius: 4px;
-    background: #000;
+    height: 10px; /* Slightly thicker track */
+    border-radius: 14px;
+    background: var(--bg-elevated);
     outline: none;
     margin: 12px 0 8px 0;
 }
@@ -229,19 +245,22 @@ h1 {
 .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
+    width: 26px;      /* Pill width */
+    height: 16px;     /* Pill height */
+    border-radius: 8px; /* Rounded pill shape */
     background: var(--primary-green);
     cursor: pointer;
+    box-shadow: 0 0 8px var(--primary-glow); /* Soft glow around the thumb */
 }
 
 .slider::-moz-range-thumb {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
+    width: 36px;
+    height: 16px;
+    border-radius: 8px;
     background: var(--primary-green);
     cursor: pointer;
+    border: none;
+    box-shadow: 0 0 8px var(--primary-glow);
 }
 
 .slider-labels {

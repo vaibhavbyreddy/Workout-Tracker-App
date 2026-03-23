@@ -27,10 +27,7 @@ async function loadDatabaseData() {
 
     // --- THE EMPTY STATE UX FIX ---
     if (appState.categories.length === 0) {
-        // Give a helpful prompt in the empty space
         elements.dynamicFieldsCard.innerHTML = '<p class="muted-text" style="color: var(--primary-green); text-align: center; padding: 20px;">Welcome! 💪🏽<br><br>Start by clicking "+ New" next to <b>Category</b> to set up your first split.</p>';
-        
-        // Visually disable and lock the Add Exercise button
         elements.addExerciseBtn.style.opacity = '0.3';
         elements.addExerciseBtn.style.pointerEvents = 'none';
     }
@@ -153,19 +150,13 @@ function renderExercises(categoryId) {
         
         chip.addEventListener('click', () => {
             appState.selectedExerciseId = ex.id;
-            renderExercises(categoryId); // refresh active state
+            renderExercises(categoryId); 
             renderInputFields(ex.id);
             elements.logSetCard.classList.remove('hidden');
             elements.dynamicFieldsCard.classList.add('hidden');
         });
         elements.exerciseChips.appendChild(chip);
     });
-}
-
-function getOrdinal(n) {
-    const s = ["th", "st", "nd", "rd"];
-    const v = n % 100;
-    return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 function renderInputFields(exerciseId) {
@@ -186,7 +177,7 @@ function renderInputFields(exerciseId) {
         new Date(log.created_at) > fiveHoursAgo
     ).length;
 
-    elements.logSetTitle.textContent = `Log ${getOrdinal(setsInLast5Hours + 1)} Set:`;
+    elements.logSetTitle.textContent = `LOG SET ${setsInLast5Hours + 1}`;
 
     const allLogsForExercise = appState.logs.filter(log => log.exercise_id === exerciseId && log.logged_data.weight);
     let pr = { weight: 0, reps: 0 };
@@ -201,11 +192,14 @@ function renderInputFields(exerciseId) {
     elements.prDisplay.textContent = `PR: ${pr.weight}kg x ${pr.reps}reps`;
     
     exercise.tracking_fields.forEach(field => {
+        // Skip rendering the 'sets' field entirely
+        if (field === 'sets' || field === 'quality') return; 
+
         const inputDiv = document.createElement('div');
         inputDiv.className = 'input-group';
         const labelText = field.charAt(0).toUpperCase() + field.slice(1);
         
-        if (field === 'quality' || field === 'form') {
+        if (field === 'form') {
             inputDiv.classList.add('full-width');
             inputDiv.innerHTML = `
                 <label>${labelText}</label>
@@ -228,7 +222,7 @@ function renderInputFields(exerciseId) {
                     <span>6-10</span>
                 </div>
             `;
-        } else if (field === 'weight' || field === 'reps') {
+        } else {
              inputDiv.innerHTML = `
                 <label>${labelText}</label>
                 <input type="number" id="input-${field}" inputmode="decimal">
@@ -270,7 +264,6 @@ function renderRecentSets() {
             }
         }
 
-
         item.innerHTML = `
             <span class="exercise-name">${exercise.name}</span>
             <span class="time">${time}</span>
@@ -291,7 +284,6 @@ function renderRecentSets() {
 
 // --- 6. EVENT LISTENERS ---
 
-// Create Category (Saves directly to Supabase)
 elements.addCategoryBtn.addEventListener('click', async () => {
     const name = prompt("Enter new category name (e.g., Legs):");
     if (!name) return;
@@ -317,7 +309,6 @@ elements.addCategoryBtn.addEventListener('click', async () => {
     }
 });
 
-// Open Exercise Modal (With strict safety check)
 elements.addExerciseBtn.addEventListener('click', () => {
     const categoryId = appState.selectedCategoryId;
     if (!categoryId) {
@@ -327,12 +318,10 @@ elements.addExerciseBtn.addEventListener('click', () => {
     elements.exerciseModal.classList.remove('hidden');
 });
 
-// Save New Exercise (With strict safety check)
 elements.saveExBtn.addEventListener('click', async () => {
     const name = elements.newExNameInput.value;
     const categoryId = appState.selectedCategoryId;
     
-    // Safety Check 1: Ensure a category is actually selected
     if (!categoryId) {
         alert("Critical Error: No category selected. Please close this and select a category first.");
         return;
@@ -343,7 +332,6 @@ elements.saveExBtn.addEventListener('click', async () => {
         if (cb.checked) selectedFields.push(cb.value);
     });
 
-    // Safety Check 2: Ensure they typed a name and checked at least one box
     if (!name || selectedFields.length === 0) {
         alert("Please enter an exercise name and select at least one field to track (like Sets or Reps).");
         return;
@@ -372,21 +360,24 @@ elements.saveExBtn.addEventListener('click', async () => {
     }
 });
 
-// Close Exercise Modal
 elements.cancelExBtn.addEventListener('click', () => {
     elements.exerciseModal.classList.add('hidden');
     elements.newExNameInput.value = '';
     elements.trackCheckboxes.forEach(cb => cb.checked = false);
 });
 
-
-// Save Set Data
 elements.saveSetBtn.addEventListener('click', async () => {
     const exerciseId = appState.selectedExerciseId;
     const currentExercise = appState.exercises.find(ex => ex.id === exerciseId);
     let payload = {};
 
     currentExercise.tracking_fields.forEach(field => {
+        // Automatically set 'sets' to 1 for database tracking
+        if (field === 'sets') {
+            payload[field] = 1;
+            return;
+        }
+
         const inputElement = document.getElementById(`input-${field}`);
         if (inputElement && inputElement.value !== '') {
             if (field === 'intensity') {
@@ -417,7 +408,7 @@ elements.saveSetBtn.addEventListener('click', async () => {
         renderRecentSets();
         renderExercises(appState.selectedCategoryId);
         renderInputFields(exerciseId);
-        // Clear inputs for the next set
+        
         currentExercise.tracking_fields.forEach(field => {
             const inputElement = document.getElementById(`input-${field}`);
             if (inputElement) {
@@ -442,30 +433,25 @@ const plotElements = {
     ctx: document.getElementById('analytics-chart').getContext('2d')
 };
 
-let myChart = null; // Holds the Chart.js instance
+let myChart = null;
 
-// Trigger data load when opening the analytics tab
 document.querySelector('[data-target="view-analytics"]').addEventListener('click', async () => {
-    // Fetch all logs from the database
     const { data: logData, error } = await supabaseClient
         .from('workout_logs')
         .select('created_at, logged_data, exercise_id')
-        .order('created_at', { ascending: true }); // Chronological X-axis
+        .order('created_at', { ascending: true }); 
 
     if (error) {
         console.error("Error fetching logs:", error);
         return;
     }
     appState.logs = logData;
-    
-    // Populate the first dropdown with exercises that actually have data
     populatePlotterExercises();
 });
 
 function populatePlotterExercises() {
     plotElements.exerciseChips.innerHTML = '';
     
-    // Find unique exercise IDs in our logs
     const uniqueExIds = [...new Set(appState.logs.map(log => log.exercise_id))];
     
     uniqueExIds.forEach(id => {
@@ -492,6 +478,8 @@ function populatePlotterMetrics(exercise) {
     plotElements.chartCard.classList.add('hidden');
     
     exercise.tracking_fields.forEach(field => {
+        if (field === 'sets' || field === 'quality') return;
+
         const chip = document.createElement('div');
         chip.className = 'chip';
         chip.textContent = field.charAt(0).toUpperCase() + field.slice(1);
@@ -515,7 +503,6 @@ function populatePlotterMetrics(exercise) {
 function drawChart(labels, dataPoints, metricName) {
     plotElements.chartCard.classList.remove('hidden');
     
-    // Destroy the old chart if it exists so they don't overlap
     if (myChart) myChart.destroy();
 
     myChart = new Chart(plotElements.ctx, {
@@ -528,7 +515,7 @@ function drawChart(labels, dataPoints, metricName) {
                 borderColor: '#6ffb85', 
                 backgroundColor: 'rgba(111, 251, 133, 0.1)',
                 borderWidth: 3,
-                tension: 0.3, // Adds a slight curve to the line
+                tension: 0.3,
                 pointBackgroundColor: '#ffffff',
                 pointRadius: 3
             }]
@@ -559,7 +546,6 @@ const aiElements = {
     cancelPromptBtn: document.getElementById('cancel-prompt-btn')
 };
 
-// 1. Populate the Category Dropdown when the AI tab is clicked
 document.querySelector('[data-target="view-ai-chat"]').addEventListener('click', async () => {
     aiElements.categorySelect.innerHTML = '<option value="" disabled selected>Select Category...</option>';
     appState.categories.forEach(cat => {
@@ -569,12 +555,10 @@ document.querySelector('[data-target="view-ai-chat"]').addEventListener('click',
         aiElements.categorySelect.appendChild(option);
     });
 
-    // Fetch custom prompt from Supabase
     const { data } = await supabaseClient.from('user_settings').select('setting_value').eq('setting_key', 'gemini_prompt').single();
     if (data) appState.customPrompt = data.setting_value;
 });
 
-// 2. Open / Close Prompt Settings
 aiElements.settingsBtn.addEventListener('click', () => {
     aiElements.promptInput.value = appState.customPrompt || "";
     aiElements.promptModal.classList.remove('hidden');
@@ -584,11 +568,9 @@ aiElements.cancelPromptBtn.addEventListener('click', () => {
     aiElements.promptModal.classList.add('hidden');
 });
 
-// 3. Save Custom Prompt to Database
 aiElements.savePromptBtn.addEventListener('click', async () => {
     const newPrompt = aiElements.promptInput.value;
     
-    // Upsert (Update or Insert) the setting
     const { error } = await supabaseClient.from('user_settings')
         .upsert({ setting_key: 'gemini_prompt', setting_value: newPrompt }, { onConflict: 'setting_key' });
         
@@ -601,18 +583,15 @@ aiElements.savePromptBtn.addEventListener('click', async () => {
     }
 });
 
-// 4. Generate AI Advice
 aiElements.getAdviceBtn.addEventListener('click', async () => {
     const categoryId = aiElements.categorySelect.value;
     if (!categoryId) return alert("Please select a category first!");
 
     aiElements.chatHistory.innerHTML += `<p style="color: var(--text-muted); font-size: 14px;"><em>Analyzing recent data...</em></p>`;
 
-    // Find all exercises belonging to this category
     const relevantExercises = appState.exercises.filter(ex => ex.category_id === categoryId);
     const exIds = relevantExercises.map(ex => ex.id);
 
-    // Fetch the last 10 logs for these specific exercises
     const { data: recentLogs } = await supabaseClient
         .from('workout_logs')
         .select('created_at, logged_data, exercise_id')
@@ -620,7 +599,6 @@ aiElements.getAdviceBtn.addEventListener('click', async () => {
         .order('created_at', { ascending: false })
         .limit(10);
 
-    // Format the data into clean text for Gemini
     let formattedHistory = "No recent data for this category.";
     if (recentLogs && recentLogs.length > 0) {
         formattedHistory = recentLogs.map(log => {
@@ -631,7 +609,6 @@ aiElements.getAdviceBtn.addEventListener('click', async () => {
     }
 
     try {
-        // Call your Vercel API endpoint
         const response = await fetch('/api/get_advice', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -644,10 +621,9 @@ aiElements.getAdviceBtn.addEventListener('click', async () => {
         const data = await response.json();
         
         if (data.advice) {
-            // Use marked.js if you want markdown formatting, or just basic text formatting
             const formattedAdvice = data.advice.replace(/\n/g, '<br>'); 
             aiElements.chatHistory.innerHTML += `
-                <div style="background: var(--menu-bg); padding: 12px; border-radius: 8px;">
+                <div style="background: var(--bg-elevated); padding: 12px; border-radius: 8px;">
                     <strong style="color: var(--ai-purple);">Gemini:</strong>
                     <p style="margin-top: 8px; font-size: 15px; line-height: 1.5;">${formattedAdvice}</p>
                 </div>`;
