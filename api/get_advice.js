@@ -39,6 +39,6 @@ export default async function handler(req, res) {
     catch (error) {
         console.error("Gemini API Error:", error);
         // This sends the actual technical error back to your app for debugging
-        res.status(500).json({ error: error.message, detail: error.stack });
+        res.status(500).json({ error: 'Failed to generate advice. Please try again.' });
     }
 }

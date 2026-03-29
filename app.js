@@ -55,6 +55,7 @@ let appState = {
     logs: [],
     selectedCategoryId: null,
     selectedExerciseId: null,
+    userId: null,
 };
 
 async function loadDatabaseData() {
@@ -335,7 +336,7 @@ elements.addCategoryBtn.addEventListener('click', async () => {
     
     const { data, error } = await supabaseClient
         .from('categories')
-        .insert([{ name: name }])
+        .insert([{ name: name, user_id: appState.userId }])
         .select();
 
     if (error) {
@@ -384,10 +385,11 @@ elements.saveExBtn.addEventListener('click', async () => {
 
     const { data, error } = await supabaseClient
         .from('exercises')
-        .insert([{ 
-            name: name, 
-            category_id: categoryId, 
-            tracking_fields: selectedFields 
+        .insert([{
+            name: name,
+            category_id: categoryId,
+            tracking_fields: selectedFields,
+            user_id: appState.userId
         }])
         .select();
 
@@ -441,7 +443,7 @@ elements.saveSetBtn.addEventListener('click', async () => {
 
     const { data, error } = await supabaseClient
         .from('workout_logs')
-        .insert([{ exercise_id: exerciseId, logged_data: payload }])
+        .insert([{ exercise_id: exerciseId, logged_data: payload, user_id: appState.userId }])
         .select();
 
     if (error) {
@@ -484,6 +486,7 @@ document.querySelector('[data-target="view-analytics"]').addEventListener('click
     const { data: logData, error } = await supabaseClient
         .from('workout_logs')
         .select('created_at, logged_data, exercise_id')
+        .eq('user_id', appState.userId)
         .order('created_at', { ascending: true }); 
 
     if (error) {
@@ -600,7 +603,7 @@ document.querySelector('[data-target="view-ai-chat"]').addEventListener('click',
         aiElements.categorySelect.appendChild(option);
     });
 
-    const { data } = await supabaseClient.from('user_settings').select('setting_value').eq('setting_key', 'gemini_prompt').single();
+    const { data } = await supabaseClient.from('user_settings').select('setting_value').eq('setting_key', 'gemini_prompt').eq('user_id', appState.userId).single();
     if (data) appState.customPrompt = data.setting_value;
 });
 
@@ -617,7 +620,7 @@ aiElements.savePromptBtn.addEventListener('click', async () => {
     const newPrompt = aiElements.promptInput.value;
     
     const { error } = await supabaseClient.from('user_settings')
-        .upsert({ setting_key: 'gemini_prompt', setting_value: newPrompt }, { onConflict: 'setting_key' });
+        .upsert({ setting_key: 'gemini_prompt', setting_value: newPrompt, user_id: appState.userId }, { onConflict: 'setting_key,user_id' });
         
     if (error) {
         alert("Failed to save prompt.");
@@ -641,6 +644,7 @@ aiElements.getAdviceBtn.addEventListener('click', async () => {
         .from('workout_logs')
         .select('created_at, logged_data, exercise_id')
         .in('exercise_id', exIds)
+        .eq('user_id', appState.userId)
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -666,11 +670,11 @@ aiElements.getAdviceBtn.addEventListener('click', async () => {
         const data = await response.json();
         
         if (data.advice) {
-            const formattedAdvice = data.advice.replace(/\n/g, '<br>'); 
+            const formattedAdvice = marked.parse(data.advice);
             aiElements.chatHistory.innerHTML += `
                 <div style="background: var(--bg-elevated); padding: 12px; border-radius: 8px;">
                     <strong style="color: var(--ai-purple);">Gemini:</strong>
-                    <p style="margin-top: 8px; font-size: 15px; line-height: 1.5;">${formattedAdvice}</p>
+                    <div class="gemini-response" style="margin-top: 8px; font-size: 15px; line-height: 1.5;">${formattedAdvice}</div>
                 </div>`;
         } else {
             throw new Error("No advice returned");
@@ -700,6 +704,7 @@ async function checkUserSession() {
     
     if (session) {
         // User is logged in! Hide auth, show app, load their specific data
+        appState.userId = session.user.id;
         authElements.viewAuth.classList.add('hidden');
         elements.viewSections.forEach(view => view.classList.add('hidden'));
         document.getElementById('view-log-workout').classList.remove('hidden');
@@ -767,3 +772,14 @@ authElements.logoutBtn.addEventListener('click', async () => {
 
 // Run this immediately when the script loads
 checkUserSession();
+
+// Listen for auth state changes (token refresh, sign out from another tab, etc.)
+supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT') {
+        appState.categories = [];
+        appState.exercises = [];
+        appState.logs = [];
+        appState.userId = null;
+        checkUserSession();
+    }
+});
