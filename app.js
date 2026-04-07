@@ -106,7 +106,15 @@ const elements = {
     trackCheckboxes: document.querySelectorAll('.track-cb'),
 
     recentSetsCard: document.getElementById('recent-sets-card'),
-    recentSetsList: document.getElementById('recent-sets-list')
+    recentSetsList: document.getElementById('recent-sets-list'),
+
+    // Edit Set Modal Elements
+    editSetModal: document.getElementById('edit-set-modal'),
+    editSetTitle: document.getElementById('edit-set-title'),
+    editSetInputs: document.getElementById('edit-set-inputs'),
+    saveEditSetBtn: document.getElementById('save-edit-set-btn'),
+    deleteSetBtn: document.getElementById('delete-set-btn'),
+    closeEditModalBtn: document.getElementById('close-edit-modal-btn')
 };
 
 // --- 4. UI & NAVIGATION LOGIC ---
@@ -299,7 +307,8 @@ function renderRecentSets() {
 
         const item = document.createElement('div');
         item.className = 'recent-set-item';
-        
+        item.style.gridTemplateColumns = '1fr auto auto';
+
         const time = new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         let details = '';
         if(log.logged_data.weight && log.logged_data.reps) {
@@ -313,10 +322,20 @@ function renderRecentSets() {
         item.innerHTML = `
             <span class="exercise-name">${exercise.name}</span>
             <span class="time">${time}</span>
+            <span class="edit-set-icon material-icons" data-log-id="${log.id}">edit</span>
             <span class="details">${details}</span>
         `;
 
-        item.addEventListener('click', () => {
+        // Edit icon click handler
+        const editIcon = item.querySelector('.edit-set-icon');
+        editIcon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openEditSetModal(log, exercise);
+        });
+
+        // Clicking the item itself shows details
+        item.addEventListener('click', (e) => {
+            if (e.target.classList.contains('edit-set-icon')) return;
             let details = `Set Details (${exercise.name} at ${time}):\n\n`;
             for (const key in log.logged_data) {
                 details += `${key.charAt(0).toUpperCase() + key.slice(1)}: ${log.logged_data[key]}\n`;
@@ -327,6 +346,168 @@ function renderRecentSets() {
         elements.recentSetsList.appendChild(item);
     });
 }
+
+// --- SESSION GROUPING HELPER ---
+function groupLogsIntoSessions(logs) {
+    if (!logs || logs.length === 0) return [];
+
+    const sorted = [...logs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+
+    const sessions = [];
+    let currentSession = null;
+
+    sorted.forEach(log => {
+        const logTime = new Date(log.created_at).getTime();
+
+        if (!currentSession || (logTime - new Date(currentSession.startTime).getTime()) > FIVE_HOURS_MS) {
+            currentSession = {
+                id: sessions.length + 1,
+                startTime: log.created_at,
+                logs: []
+            };
+            sessions.push(currentSession);
+        }
+        currentSession.logs.push(log);
+    });
+
+    // Derive session type from category of exercises within
+    sessions.forEach(session => {
+        const exIds = [...new Set(session.logs.map(l => l.exercise_id))];
+        const categories = exIds.map(eid => {
+            const ex = appState.exercises.find(e => e.id === eid);
+            return ex ? appState.categories.find(c => c.id === ex.category_id) : null;
+        }).filter(Boolean);
+
+        // Use the category name of the first exercise as session type
+        const firstCat = categories[0];
+        session.type = firstCat ? firstCat.name : 'Mixed';
+    });
+
+    return sessions;
+}
+
+// --- EDIT SET MODAL LOGIC ---
+let editingLogId = null;
+
+function openEditSetModal(log, exercise) {
+    editingLogId = log.id;
+    elements.editSetTitle.textContent = `EDIT SET — ${exercise.name.toUpperCase()}`;
+    elements.editSetInputs.innerHTML = '';
+
+    exercise.tracking_fields.forEach(field => {
+        if (field === 'sets' || field === 'quality') return;
+
+        const inputDiv = document.createElement('div');
+        inputDiv.className = 'input-group';
+        const labelText = field.charAt(0).toUpperCase() + field.slice(1);
+
+        if (field === 'form') {
+            inputDiv.classList.add('full-width');
+            const savedVal = log.logged_data[field] !== undefined ? log.logged_data[field] : 3;
+            inputDiv.innerHTML = `
+                <label>${labelText}</label>
+                <input type="range" id="edit-input-${field}" min="1" max="5" step="1" value="${savedVal}" class="slider">
+                <div class="slider-labels">
+                    <span>Poor</span>
+                    <span>Average</span>
+                    <span>Excellent</span>
+                </div>
+            `;
+        } else if (field === 'intensity') {
+            inputDiv.classList.add('full-width');
+            // Reverse-map the RIR value back to slider index
+            const intensityReverseMap = { 0: 0, 1.5: 1, 4: 2, 8: 3 };
+            const savedIntensity = log.logged_data[field] !== undefined ? log.logged_data[field] : 0;
+            const sliderVal = intensityReverseMap[savedIntensity] !== undefined ? intensityReverseMap[savedIntensity] : 0;
+            inputDiv.innerHTML = `
+                <label>Intensity (RIR)</label>
+                <input type="range" id="edit-input-intensity" min="0" max="3" step="1" value="${sliderVal}" class="slider">
+                <div class="slider-labels">
+                    <span>Failure</span>
+                    <span>1-2</span>
+                    <span>3-5</span>
+                    <span>6-10</span>
+                </div>
+            `;
+        } else {
+            const savedVal = log.logged_data[field] !== undefined ? log.logged_data[field] : '';
+            inputDiv.innerHTML = `
+                <label>${labelText}</label>
+                <input type="number" id="edit-input-${field}" inputmode="decimal" value="${savedVal}">
+            `;
+        }
+
+        elements.editSetInputs.appendChild(inputDiv);
+    });
+
+    elements.editSetModal.classList.remove('hidden');
+}
+
+elements.closeEditModalBtn.addEventListener('click', () => {
+    elements.editSetModal.classList.add('hidden');
+    editingLogId = null;
+});
+
+elements.saveEditSetBtn.addEventListener('click', async () => {
+    if (!editingLogId) return;
+
+    const log = appState.logs.find(l => l.id === editingLogId);
+    if (!log) return;
+
+    const exercise = appState.exercises.find(ex => ex.id === log.exercise_id);
+    if (!exercise) return;
+
+    let updatedData = {};
+    exercise.tracking_fields.forEach(field => {
+        if (field === 'sets') { updatedData[field] = 1; return; }
+        const inputEl = document.getElementById(`edit-input-${field}`);
+        if (inputEl && inputEl.value !== '') {
+            if (field === 'intensity') {
+                const intensityMap = [0, 1.5, 4, 8];
+                updatedData[field] = intensityMap[parseInt(inputEl.value)];
+            } else {
+                updatedData[field] = parseFloat(inputEl.value);
+            }
+        }
+    });
+
+    const { data, error } = await supabaseClient
+        .from('workout_logs')
+        .update({ logged_data: updatedData })
+        .eq('id', editingLogId)
+        .select();
+
+    if (error) {
+        alert("Failed to update set.");
+        console.error(error);
+    } else {
+        const idx = appState.logs.findIndex(l => l.id === editingLogId);
+        if (idx !== -1) appState.logs[idx] = data[0];
+        renderRecentSets();
+        elements.editSetModal.classList.add('hidden');
+        editingLogId = null;
+    }
+});
+
+elements.deleteSetBtn.addEventListener('click', async () => {
+    if (!editingLogId) return;
+
+    const { error } = await supabaseClient
+        .from('workout_logs')
+        .delete()
+        .eq('id', editingLogId);
+
+    if (error) {
+        alert("Failed to delete set.");
+        console.error(error);
+    } else {
+        appState.logs = appState.logs.filter(l => l.id !== editingLogId);
+        renderRecentSets();
+        elements.editSetModal.classList.add('hidden');
+        editingLogId = null;
+    }
+});
 
 // --- 6. EVENT LISTENERS ---
 
@@ -472,36 +653,197 @@ elements.saveSetBtn.addEventListener('click', async () => {
 });
 
 // --- 8. ANALYTICS & PLOTTING ---
-const plotElements = {
-    exerciseChips: document.getElementById('plot-exercise-chips'),
-    metricContainer: document.getElementById('plot-metric-container'),
-    metricChips: document.getElementById('plot-metric-chips'),
-    chartCard: document.getElementById('chart-card'),
-    ctx: document.getElementById('analytics-chart').getContext('2d')
+const analyticsElements = {
+    toggleWorkout: document.getElementById('toggle-workout-view'),
+    toggleExercise: document.getElementById('toggle-exercise-view'),
+    sessionView: document.getElementById('session-view'),
+    exerciseView: document.getElementById('exercise-view'),
+    sessionCategoryGrid: document.getElementById('session-category-grid'),
+    sessionListContainer: document.getElementById('session-list-container'),
+    sessionExerciseChipsContainer: document.getElementById('session-exercise-chips-container'),
+    sessionExerciseChips: document.getElementById('session-exercise-chips'),
+    sessionTableContainer: document.getElementById('session-table-container'),
+    plotExerciseChips: document.getElementById('plot-exercise-chips'),
+    sessionFilterContainer: document.getElementById('session-filter-container'),
+    sessionFilterSelect: document.getElementById('session-filter-select'),
+    chartsContainer: document.getElementById('charts-container')
 };
 
-let myChart = null;
+let activeCharts = [];
+let allSessions = [];
+let selectedAnalyticsExerciseId = null;
 
+// Toggle between Workout and Exercise views
+analyticsElements.toggleWorkout.addEventListener('click', () => {
+    analyticsElements.toggleWorkout.classList.add('active');
+    analyticsElements.toggleExercise.classList.remove('active');
+    analyticsElements.sessionView.classList.remove('hidden');
+    analyticsElements.exerciseView.classList.add('hidden');
+    analyticsElements.chartsContainer.innerHTML = '';
+    activeCharts.forEach(c => c.destroy());
+    activeCharts = [];
+});
+
+analyticsElements.toggleExercise.addEventListener('click', () => {
+    analyticsElements.toggleExercise.classList.add('active');
+    analyticsElements.toggleWorkout.classList.remove('active');
+    analyticsElements.exerciseView.classList.remove('hidden');
+    analyticsElements.sessionView.classList.add('hidden');
+    analyticsElements.sessionListContainer.innerHTML = '';
+    analyticsElements.sessionExerciseChipsContainer.classList.add('hidden');
+    analyticsElements.sessionTableContainer.classList.add('hidden');
+    populateExerciseChips();
+});
+
+// Load data when Progress tab is clicked
 document.querySelector('[data-target="view-analytics"]').addEventListener('click', async () => {
     const { data: logData, error } = await supabaseClient
         .from('workout_logs')
-        .select('created_at, logged_data, exercise_id')
+        .select('*')
         .eq('user_id', appState.userId)
-        .order('created_at', { ascending: true }); 
+        .order('created_at', { ascending: true });
 
     if (error) {
         console.error("Error fetching logs:", error);
         return;
     }
     appState.logs = logData;
-    populatePlotterExercises();
+    allSessions = groupLogsIntoSessions(logData);
+
+    // Reset views
+    analyticsElements.toggleWorkout.click();
+    renderSessionCategories();
 });
 
-function populatePlotterExercises() {
-    plotElements.exerciseChips.innerHTML = '';
-    
+// ===== PHASE 3: BY SESSION VIEW =====
+
+function renderSessionCategories() {
+    analyticsElements.sessionCategoryGrid.innerHTML = '';
+    analyticsElements.sessionListContainer.innerHTML = '';
+    analyticsElements.sessionExerciseChipsContainer.classList.add('hidden');
+    analyticsElements.sessionTableContainer.classList.add('hidden');
+
+    // Get unique category names from sessions
+    const sessionTypes = [...new Set(allSessions.map(s => s.type))];
+
+    sessionTypes.forEach(type => {
+        const btn = document.createElement('button');
+        btn.className = 'grid-btn';
+        btn.textContent = type;
+        btn.addEventListener('click', () => {
+            Array.from(analyticsElements.sessionCategoryGrid.children).forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderSessionList(type);
+        });
+        analyticsElements.sessionCategoryGrid.appendChild(btn);
+    });
+}
+
+function renderSessionList(type) {
+    analyticsElements.sessionListContainer.innerHTML = '';
+    analyticsElements.sessionExerciseChipsContainer.classList.add('hidden');
+    analyticsElements.sessionTableContainer.classList.add('hidden');
+
+    const filtered = allSessions.filter(s => s.type === type).reverse(); // newest first
+
+    if (filtered.length === 0) {
+        analyticsElements.sessionListContainer.innerHTML = '<p class="muted-text">No sessions found.</p>';
+        return;
+    }
+
+    filtered.forEach(session => {
+        const item = document.createElement('div');
+        item.className = 'session-item';
+        const date = new Date(session.startTime);
+        const dateStr = `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+        const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        item.innerHTML = `
+            <span>${dateStr} ${timeStr}</span>
+            <div class="session-date">${session.logs.length} set(s)</div>
+        `;
+        item.addEventListener('click', () => {
+            Array.from(analyticsElements.sessionListContainer.querySelectorAll('.session-item')).forEach(si => si.style.borderColor = '');
+            item.style.borderColor = 'var(--primary-green)';
+            renderSessionExerciseChips(session);
+        });
+        analyticsElements.sessionListContainer.appendChild(item);
+    });
+}
+
+function renderSessionExerciseChips(session) {
+    analyticsElements.sessionExerciseChipsContainer.classList.remove('hidden');
+    analyticsElements.sessionExerciseChips.innerHTML = '';
+    analyticsElements.sessionTableContainer.classList.add('hidden');
+
+    const exIds = [...new Set(session.logs.map(l => l.exercise_id))];
+
+    exIds.forEach(eid => {
+        const exercise = appState.exercises.find(ex => ex.id === eid);
+        if (!exercise) return;
+
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.textContent = exercise.name;
+        chip.addEventListener('click', () => {
+            Array.from(analyticsElements.sessionExerciseChips.children).forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            renderSessionTable(session, eid);
+        });
+        analyticsElements.sessionExerciseChips.appendChild(chip);
+    });
+}
+
+function renderSessionTable(session, exerciseId) {
+    analyticsElements.sessionTableContainer.classList.remove('hidden');
+    analyticsElements.sessionTableContainer.innerHTML = '';
+
+    const exercise = appState.exercises.find(ex => ex.id === exerciseId);
+    if (!exercise) return;
+
+    const sets = session.logs.filter(l => l.exercise_id === exerciseId);
+
+    // Gather all unique keys across all sets for this exercise
+    const allKeys = [];
+    const keySet = new Set();
+    sets.forEach(s => {
+        for (const key in s.logged_data) {
+            if (!keySet.has(key)) {
+                keySet.add(key);
+                allKeys.push(key);
+            }
+        }
+    });
+
+    let html = '<table class="data-table"><thead><tr><th>Set #</th>';
+    allKeys.forEach(key => {
+        html += `<th>${key.charAt(0).toUpperCase() + key.slice(1)}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    sets.forEach((set, idx) => {
+        html += `<tr><td>${idx + 1}</td>`;
+        allKeys.forEach(key => {
+            const val = set.logged_data[key];
+            html += `<td>${val !== undefined ? val : '—'}</td>`;
+        });
+        html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    analyticsElements.sessionTableContainer.innerHTML = html;
+}
+
+// ===== PHASE 4: BY EXERCISE VIEW =====
+
+function populateExerciseChips() {
+    analyticsElements.plotExerciseChips.innerHTML = '';
+    analyticsElements.sessionFilterContainer.classList.add('hidden');
+    analyticsElements.chartsContainer.innerHTML = '';
+    activeCharts.forEach(c => c.destroy());
+    activeCharts = [];
+
     const uniqueExIds = [...new Set(appState.logs.map(log => log.exercise_id))];
-    
+
     uniqueExIds.forEach(id => {
         const exercise = appState.exercises.find(ex => ex.id === id);
         if (exercise) {
@@ -509,59 +851,136 @@ function populatePlotterExercises() {
             chip.className = 'chip';
             chip.textContent = exercise.name;
             chip.addEventListener('click', () => {
-                Array.from(plotElements.exerciseChips.children).forEach(c => c.classList.remove('active'));
+                Array.from(analyticsElements.plotExerciseChips.children).forEach(c => c.classList.remove('active'));
                 chip.classList.add('active');
-                
-                appState.plotSelectedExerciseId = id;
-                populatePlotterMetrics(exercise);
+                selectedAnalyticsExerciseId = id;
+                analyticsElements.sessionFilterContainer.classList.remove('hidden');
+                plotExerciseData(id, exercise);
             });
-            plotElements.exerciseChips.appendChild(chip);
+            analyticsElements.plotExerciseChips.appendChild(chip);
         }
     });
 }
 
-function populatePlotterMetrics(exercise) {
-    plotElements.metricChips.innerHTML = '';
-    plotElements.metricContainer.classList.remove('hidden');
-    plotElements.chartCard.classList.add('hidden');
-    
+analyticsElements.sessionFilterSelect.addEventListener('change', () => {
+    if (selectedAnalyticsExerciseId) {
+        const exercise = appState.exercises.find(ex => ex.id === selectedAnalyticsExerciseId);
+        if (exercise) plotExerciseData(selectedAnalyticsExerciseId, exercise);
+    }
+});
+
+function plotExerciseData(exerciseId, exercise) {
+    activeCharts.forEach(c => c.destroy());
+    activeCharts = [];
+    analyticsElements.chartsContainer.innerHTML = '';
+
+    // Filter sessions that contain this exercise
+    let relevantSessions = allSessions.filter(s =>
+        s.logs.some(l => l.exercise_id === exerciseId)
+    );
+
+    // Apply session filter
+    const filterVal = analyticsElements.sessionFilterSelect.value;
+    if (filterVal !== 'all') {
+        relevantSessions = relevantSessions.slice(-parseInt(filterVal));
+    }
+
+    if (relevantSessions.length === 0) {
+        analyticsElements.chartsContainer.innerHTML = '<div class="card"><p class="muted-text">No data to plot.</p></div>';
+        return;
+    }
+
+    // Flatten sets with session grouping for labels
+    const flatSets = [];
+    relevantSessions.forEach(session => {
+        const sessionSets = session.logs.filter(l => l.exercise_id === exerciseId);
+        sessionSets.forEach((set, idx) => {
+            flatSets.push({
+                ...set,
+                _sessionDate: new Date(session.startTime).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                _isFirstInSession: idx === 0
+            });
+        });
+    });
+
+    // Build labels: only show date for first set in session
+    const labels = flatSets.map(s => s._isFirstInSession ? s._sessionDate : '');
+
+    // --- CALCULATED METRICS ---
+
+    // Adjusted e1RM per session (highest)
+    const e1rmBySession = relevantSessions.map(session => {
+        const sets = session.logs.filter(l => l.exercise_id === exerciseId);
+        let maxE1rm = null;
+        sets.forEach(s => {
+            const w = s.logged_data.weight;
+            const r = s.logged_data.reps;
+            const rawIntensity = s.logged_data.intensity;
+            if (w && r && rawIntensity !== undefined) {
+                const rir = rawIntensity;
+                const e1rm = w * (1 + (r + rir) / 30);
+                if (maxE1rm === null || e1rm > maxE1rm) maxE1rm = e1rm;
+            }
+        });
+        return maxE1rm;
+    });
+
+    // Volume per session
+    const volumeBySession = relevantSessions.map(session => {
+        const sets = session.logs.filter(l => l.exercise_id === exerciseId);
+        return sets.reduce((sum, s) => {
+            const w = s.logged_data.weight || 0;
+            const r = s.logged_data.reps || 0;
+            return sum + (w * r);
+        }, 0);
+    });
+
+    // Plot e1RM (highest per session)
+    if (e1rmBySession.some(v => v !== null)) {
+        const e1rmLabels = relevantSessions.map(s => {
+            const date = new Date(s.startTime);
+            return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+        });
+        createChartCard('Estimated 1RM (Best per Session)', e1rmLabels, e1rmBySession.map(v => v !== null ? Math.round(v * 100) / 100 : null), '#bf5af2');
+    }
+
+    // Plot Volume per session
+    if (volumeBySession.some(v => v > 0)) {
+        const volLabels = relevantSessions.map(s => {
+            const date = new Date(s.startTime);
+            return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+        });
+        createChartCard('Session Volume (Weight × Reps)', volLabels, volumeBySession, '#6ffb85');
+    }
+
+    // --- RAW METRIC CHARTS ---
     exercise.tracking_fields.forEach(field => {
         if (field === 'sets' || field === 'quality') return;
 
-        const chip = document.createElement('div');
-        chip.className = 'chip';
-        chip.textContent = field.charAt(0).toUpperCase() + field.slice(1);
-        chip.addEventListener('click', () => {
-            Array.from(plotElements.metricChips.children).forEach(c => c.classList.remove('active'));
-            chip.classList.add('active');
-            
-            const relevantLogs = appState.logs.filter(log => log.exercise_id === exercise.id && log.logged_data[field] !== undefined);
-            const labels = relevantLogs.map(log => {
-                const date = new Date(log.created_at);
-                return `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-            });
-            const dataPoints = relevantLogs.map(log => log.logged_data[field]);
-            
-            drawChart(labels, dataPoints, field);
-        });
-        plotElements.metricChips.appendChild(chip);
+        const dataPoints = flatSets.map(s => s.logged_data[field] !== undefined ? s.logged_data[field] : null);
+        if (!dataPoints.some(v => v !== null)) return;
+
+        createChartCard(field.charAt(0).toUpperCase() + field.slice(1), labels, dataPoints, '#6ffb85');
     });
 }
 
-function drawChart(labels, dataPoints, metricName) {
-    plotElements.chartCard.classList.remove('hidden');
-    
-    if (myChart) myChart.destroy();
+function createChartCard(title, labels, dataPoints, borderColor) {
+    const card = document.createElement('div');
+    card.className = 'card';
 
-    myChart = new Chart(plotElements.ctx, {
+    const canvasEl = document.createElement('canvas');
+    card.appendChild(canvasEl);
+    analyticsElements.chartsContainer.appendChild(card);
+
+    const chart = new Chart(canvasEl.getContext('2d'), {
         type: 'line',
         data: {
             labels: labels,
             datasets: [{
-                label: metricName.toUpperCase(),
+                label: title.toUpperCase(),
                 data: dataPoints,
-                borderColor: '#6ffb85', 
-                backgroundColor: 'rgba(111, 251, 133, 0.1)',
+                borderColor: borderColor,
+                backgroundColor: borderColor === '#bf5af2' ? 'rgba(191, 90, 242, 0.1)' : 'rgba(111, 251, 133, 0.1)',
                 borderWidth: 3,
                 tension: 0.3,
                 pointBackgroundColor: '#ffffff',
@@ -572,14 +991,29 @@ function drawChart(labels, dataPoints, metricName) {
             responsive: true,
             color: '#ffffff',
             scales: {
-                y: { grid: { display: false }, ticks: { color: '#acaaad' } },
-                x: { grid: { display: false }, ticks: { color: '#acaaad' } }
+                y: {
+                    beginAtZero: true,
+                    grid: { display: false },
+                    ticks: { color: '#acaaad' }
+                },
+                x: {
+                    grid: {
+                        color: (context) => {
+                            const label = context.tick ? context.tick.label : '';
+                            return label && label !== '' ? 'rgba(255,255,255,0.2)' : 'transparent';
+                        },
+                        drawBorder: false
+                    },
+                    ticks: { color: '#acaaad', maxRotation: 45 }
+                }
             },
             plugins: {
                 legend: { labels: { color: '#ffffff' } }
             }
         }
     });
+
+    activeCharts.push(chart);
 }
 
 // --- 9. GEMINI AI COACH LOGIC ---

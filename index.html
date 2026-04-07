@@ -96,6 +96,18 @@
                 </div>
             </div>
 
+            <div id="edit-set-modal" class="modal hidden">
+                <div class="modal-content card">
+                    <div class="header-with-action">
+                        <h3 id="edit-set-title">EDIT SET</h3>
+                        <button class="text-btn" id="close-edit-modal-btn">Cancel</button>
+                    </div>
+                    <div id="edit-set-inputs"></div>
+                    <button id="save-edit-set-btn" class="primary-btn mt-3">SAVE CHANGES</button>
+                    <button id="delete-set-btn" class="danger-btn mt-3" style="margin-top: 8px;">DELETE SET</button>
+                </div>
+            </div>
+
             <div class="card" id="recent-sets-card">
                 <h3>Recent Sets (Last 5 hours)</h3>
                 <div id="recent-sets-list">
@@ -117,22 +129,44 @@
 
         <section id="view-analytics" class="view-section hidden">
             <div class="card">
-                <h2>Data Plotter</h2>
-                
-                <div class="input-group">
-                    <label>Select Exercise</label>
-                    <div id="plot-exercise-chips" class="horizontal-chips"></div>
+                <div class="analytics-toggle">
+                    <button class="grid-btn active" id="toggle-workout-view">Workout (Session)</button>
+                    <button class="grid-btn" id="toggle-exercise-view">Exercise</button>
                 </div>
 
-                <div class="input-group mt-3 hidden" id="plot-metric-container">
-                    <label>Plot on Y-Axis</label>
-                    <div id="plot-metric-chips" class="horizontal-chips"></div>
+                <!-- BY SESSION VIEW -->
+                <div id="session-view">
+                    <div class="input-group">
+                        <label>Workout Type</label>
+                        <div id="session-category-grid" class="button-grid"></div>
+                    </div>
+                    <div id="session-list-container" class="analytics-subsection"></div>
+                    <div id="session-exercise-chips-container" class="analytics-subsection hidden">
+                        <label>Exercises</label>
+                        <div id="session-exercise-chips" class="horizontal-chips"></div>
+                    </div>
+                    <div id="session-table-container" class="analytics-subsection hidden"></div>
+                </div>
+
+                <!-- BY EXERCISE VIEW -->
+                <div id="exercise-view" class="hidden">
+                    <div class="input-group">
+                        <label>Select Exercise</label>
+                        <div id="plot-exercise-chips" class="horizontal-chips"></div>
+                    </div>
+                    <div class="input-group session-filter hidden" id="session-filter-container">
+                        <label>Last N Sessions</label>
+                        <select id="session-filter-select">
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="all" selected>All</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            <div class="card hidden" id="chart-card">
-                <canvas id="analytics-chart"></canvas>
-            </div>
+            <div id="charts-container"></div>
         </section>
 
         <section id="view-ai-chat" class="view-section hidden">

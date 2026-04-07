@@ -438,3 +438,109 @@ input[type="checkbox"] {
     accent-color: var(--primary-green);
     cursor: pointer;
 }
+
+/* Danger Button */
+.danger-btn {
+    background: none;
+    color: #ff453a;
+    font-weight: 700;
+    border: 1px solid #ff453a;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 16px;
+    cursor: pointer;
+    width: 100%;
+    text-transform: uppercase;
+}
+
+/* Edit icon in recent sets */
+.edit-set-icon {
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 20px;
+    justify-self: end;
+    align-self: start;
+    transition: color 0.2s;
+}
+.edit-set-icon:hover { color: var(--primary-green); }
+
+/* Data table for session view */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 14px;
+}
+.data-table th, .data-table td {
+    padding: 8px 6px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.data-table th {
+    color: var(--primary-green);
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+.data-table td {
+    color: var(--text-main);
+}
+
+/* Analytics toggle */
+.analytics-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.analytics-toggle .grid-btn {
+    padding: 14px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+/* Session list item */
+.session-item {
+    padding: 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 16px;
+    transition: border-color 0.2s;
+}
+.session-item:hover { border-color: var(--primary-green); }
+.session-item .session-date {
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 400;
+    margin-top: 4px;
+}
+
+/* Analytics sub-sections */
+.analytics-subsection { margin-top: 16px; }
+
+/* Session filter dropdown */
+.session-filter {
+    margin-top: 12px;
+}
+
+/* Edit Set Modal Inputs */
+#edit-set-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+    align-items: end;
+}
+#edit-set-inputs .input-group { margin-bottom: 0; }
+#edit-set-inputs input[type="number"] {
+    font-size: 52px;
+    font-weight: 800;
+    text-align: center;
+    padding: 12px;
+    width: 100%;
+    background-color: #000;
+}
