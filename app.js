@@ -236,11 +236,11 @@ function renderInputFields(exerciseId) {
     const allLogsForExercise = appState.logs.filter(log => log.exercise_id === exerciseId && log.logged_data.weight);
     let pr = { weight: 0, reps: 0 };
     if (allLogsForExercise.length > 0) {
-        const maxWeightLog = allLogsForExercise.reduce((max, log) => 
-            log.logged_data.weight > max.logged_data.weight ? log : max
-        );
-        pr.weight = maxWeightLog.logged_data.weight;
-        pr.reps = maxWeightLog.logged_data.reps;
+        const maxWeight = Math.max(...allLogsForExercise.map(log => log.logged_data.weight));
+        const logsAtMaxWeight = allLogsForExercise.filter(log => log.logged_data.weight === maxWeight);
+        const maxRepsAtMaxWeight = Math.max(...logsAtMaxWeight.map(log => log.logged_data.reps));
+        pr.weight = maxWeight;
+        pr.reps = maxRepsAtMaxWeight;
     }
 
     elements.prDisplay.textContent = `PR: ${pr.weight}kg x ${pr.reps}reps`;
@@ -1069,7 +1069,12 @@ aiElements.getAdviceBtn.addEventListener('click', async () => {
     const categoryId = aiElements.categorySelect.value;
     if (!categoryId) return alert("Please select a category first!");
 
-    aiElements.chatHistory.innerHTML += `<p style="color: var(--text-muted); font-size: 14px;"><em>Analyzing recent data...</em></p>`;
+    // Show analyzing message
+    const analyzingEl = document.createElement('p');
+    analyzingEl.id = 'analyzing-msg';
+    analyzingEl.style.cssText = 'color: var(--text-muted); font-size: 14px;';
+    analyzingEl.innerHTML = '<em>Analyzing recent data...</em>';
+    aiElements.chatHistory.appendChild(analyzingEl);
 
     const relevantExercises = appState.exercises.filter(ex => ex.category_id === categoryId);
     const exIds = relevantExercises.map(ex => ex.id);
@@ -1080,15 +1085,34 @@ aiElements.getAdviceBtn.addEventListener('click', async () => {
         .in('exercise_id', exIds)
         .eq('user_id', appState.userId)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
 
     let formattedHistory = "No recent data for this category.";
     if (recentLogs && recentLogs.length > 0) {
-        formattedHistory = recentLogs.map(log => {
-            const exName = relevantExercises.find(e => e.id === log.exercise_id).name;
-            const dateStr = new Date(log.created_at).toLocaleDateString();
-            return `${exName} (${dateStr}): ${JSON.stringify(log.logged_data)}`;
-        }).join('\n');
+        // Group logs into sessions for clearer data
+        const sorted = [...recentLogs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+        const sessions = [];
+        let currentSession = null;
+
+        sorted.forEach(log => {
+            const logTime = new Date(log.created_at).getTime();
+            if (!currentSession || (logTime - new Date(currentSession.startTime).getTime()) > FIVE_HOURS_MS) {
+                currentSession = { startTime: log.created_at, logs: [] };
+                sessions.push(currentSession);
+            }
+            currentSession.logs.push(log);
+        });
+
+        const sessionLines = sessions.map((session, i) => {
+            const dateStr = new Date(session.startTime).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            const sets = session.logs.map(log => {
+                const exName = relevantExercises.find(e => e.id === log.exercise_id).name;
+                return `  - ${exName}: ${log.logged_data.weight}kg x ${log.logged_data.reps} reps`;
+            }).join('\n');
+            return `Session ${i + 1} (${dateStr}):\n${sets}`;
+        });
+        formattedHistory = sessionLines.join('\n\n');
     }
 
     try {
@@ -1102,18 +1126,23 @@ aiElements.getAdviceBtn.addEventListener('click', async () => {
         });
 
         const data = await response.json();
-        
+
+        // Remove analyzing message
+        const analyzingMsg = document.getElementById('analyzing-msg');
+        if (analyzingMsg) analyzingMsg.remove();
+
         if (data.advice) {
             const formattedAdvice = marked.parse(data.advice);
             aiElements.chatHistory.innerHTML += `
-                <div style="background: var(--bg-elevated); padding: 12px; border-radius: 8px;">
-                    <strong style="color: var(--ai-purple);">Gemini:</strong>
-                    <div class="gemini-response" style="margin-top: 8px; font-size: 15px; line-height: 1.5;">${formattedAdvice}</div>
-                </div>`;
+                <div class="gemini-response" style="font-size: 15px; line-height: 1.5;">${formattedAdvice}</div>`;
         } else {
             throw new Error("No advice returned");
         }
     } catch (error) {
+        // Remove analyzing message on error too
+        const analyzingMsg = document.getElementById('analyzing-msg');
+        if (analyzingMsg) analyzingMsg.remove();
+
         console.error(error);
         aiElements.chatHistory.innerHTML += `<p style="color: #ff453a;">Failed to connect to the AI server. Are you running this locally or on Vercel?</p>`;
     }
